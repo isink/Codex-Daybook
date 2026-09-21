@@ -1,0 +1,9 @@
+{
+  "id": "codex-daily-sync",
+  "name": "Codex Daybook",
+  "version": "0.5.6",
+  "minAppVersion": "1.13.7",
+  "description": "Saves new local Codex Desktop main tasks as notes and links them into your daily track once sync is running.",
+  "author": "duskecho",
+  "isDesktopOnly": true
+}

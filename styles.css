@@ -1,0 +1,89 @@
+/* All rules are limited to notes carrying our cssclasses frontmatter. Theme
+   variables follow Minimal and Obsidian's current light/dark palette. */
+.codex-conversation .callout[data-callout="codex-question"] {
+  --callout-color: var(--callout-default);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  width: fit-content;
+  max-width: 80%;
+  box-sizing: border-box;
+  margin: 1.6em 0 1em auto;
+  text-align: left;
+  box-shadow: none;
+}
+.codex-conversation .callout[data-callout="codex-question"] .callout-title,
+.codex-conversation .callout[data-callout="codex-answer"] .callout-title {
+  color: var(--text-muted);
+  font-size: 0.78em;
+  font-weight: 500;
+  gap: 0;
+}
+.codex-conversation .callout[data-callout="codex-question"] .callout-icon,
+.codex-conversation .callout[data-callout="codex-answer"] .callout-icon {
+  display: none;
+}
+.codex-conversation .callout[data-callout="codex-question"] .callout-content > :first-child { margin-top: 0.7em; }
+.codex-conversation .callout[data-callout="codex-question"] .callout-content > :last-child { margin-bottom: 0; }
+.codex-conversation .callout[data-callout="codex-question"] .callout-content { overflow-wrap: anywhere; min-width: 0; }
+.codex-conversation .callout[data-callout="codex-question"] .callout-content pre { overflow-wrap: normal; }
+.codex-conversation .callout[data-callout="codex-answer"] {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 1.25em 0 0.45em;
+}
+.codex-conversation .callout[data-callout="codex-answer"] .callout-content { display: none; }
+.markdown-source-view.codex-conversation .callout[data-callout="codex-question"] { margin: 0.5em 0 0.5em auto; }
+.markdown-source-view.codex-conversation .callout[data-callout="codex-answer"] { margin: 0.35em 0; }
+.codex-conversation .callout[data-callout="codex-question"] .image-embed,
+.codex-conversation .callout[data-callout="codex-question"] .image-wrapper {
+  display: block !important;
+  width: fit-content !important;
+  max-width: min(240px, 100%) !important;
+  max-height: 180px !important;
+  margin-inline: 0 !important;
+}
+/* Deliberately override Minimal's full-width-media and readable-line-width
+   selectors, but only for image embeds inside our own question cards. */
+.codex-conversation .callout[data-callout="codex-question"] .image-embed img {
+  display: block !important;
+  max-width: min(240px, 100%) !important;
+  max-height: 180px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+  border-radius: 8px;
+  margin: 0 !important;
+  cursor: zoom-in;
+}
+.codex-conversation {
+  --h1-size: 1.4em;
+  --h2-size: 1.2em;
+  --h3-size: 1.08em;
+  --p-spacing: 0.85rem;
+}
+
+/* Settings-tab info/status boxes only — unrelated to the note-content rules
+   above, which stay scoped to .codex-conversation notes. */
+.codex-daybook-note {
+  margin: 0.6em 0 1.1em;
+  padding: 0.55em 0.85em;
+  border-radius: 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  font-size: 0.95em;
+  color: var(--text-muted);
+}
+.codex-daybook-note.is-warning {
+  border-color: var(--text-warning, var(--color-orange));
+  color: var(--text-normal);
+}
+
+.codex-daybook-file-picker { display: none; }
+.codex-daybook-query { width: 100%; }
+
+.codex-daybook-advanced { margin: 1em 0; }
+.codex-daybook-advanced > summary { cursor: pointer; color: var(--text-muted); padding: 0.5em 0; }

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+release/
+data.json
+.claude/
+.DS_Store
+test-vault/
+*.log

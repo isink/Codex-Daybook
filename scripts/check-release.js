@@ -1,0 +1,16 @@
+const fs=require('node:fs');
+const assert=require('node:assert/strict');
+const {install,source,scan}=require('./release-files');
+const m=require('../manifest.json'),p=require('../package.json'),lock=require('../package-lock.json');
+assert.match(m.version,/^\d+\.\d+\.\d+$/);
+for(const version of [p.version,lock.version,lock.packages[''].version,require('../dist/manifest.json').version])assert.equal(version,m.version,'Version mismatch');
+assert.equal(m.id,'codex-daily-sync');assert.equal(m.name,'Codex Daybook');assert.equal(m.isDesktopOnly,true);
+assert.ok(m.description.length<=250&&m.description.endsWith('.'));
+assert.equal(require('../versions.json')[m.version],m.minAppVersion);
+assert.equal(p.license,'MIT');assert.equal(lock.packages[''].license,'MIT');
+const main=fs.readFileSync('dist/main.js','utf8');
+for(const f of ['LICENSE','node_modules/yaml/LICENSE'])assert.ok(main.includes(fs.readFileSync(f,'utf8').trim()),'Missing bundled license: '+f);
+for(const f of ['manifest.json','styles.css','LICENSE','THIRD-PARTY-NOTICES.txt'])assert.ok(fs.readFileSync(f).equals(fs.readFileSync('dist/'+f)),'Stale build file: '+f);
+for(const f of source)scan(f,fs.readFileSync(f));
+for(const f of install)scan(f,fs.readFileSync('dist/'+f));
+console.log('Release checks passed: versions, manifest, bundled licenses, allowlist and privacy patterns. Human review is still required.');

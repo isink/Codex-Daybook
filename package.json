@@ -1,0 +1,25 @@
+{
+  "name": "codex-daily-sync",
+  "version": "0.5.6",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "test": "node scripts/test.js",
+    "probe": "node scripts/probe.js",
+    "package": "npm run check && node scripts/package.js",
+    "lint": "eslint src/",
+    "check": "npm run lint && npm test && npm run build && node scripts/check-release.js"
+  },
+  "dependencies": {
+    "yaml": "2.8.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "eslint": "10.11.0",
+    "eslint-plugin-obsidianmd": "0.4.2"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.14.0"
+  }
+}
