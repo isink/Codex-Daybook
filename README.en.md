@@ -1,4 +1,4 @@
-# Codex Daybook 0.5.6 — local release candidate
+# Codex Daybook 0.5.7 — local release candidate
 
 Desktop Obsidian plugin. Source is public at [isink/obsidian-codex-daily-sync](https://github.com/isink/obsidian-codex-daily-sync). **Windows hardware validation, community review, and a real community-channel installation remain pending. Licensed under MIT; a release candidate is not a marketplace listing.** See [Chinese guide](README.md), [privacy](PRIVACY.md), [test checklist](WINDOWS-CHECKLIST.md), and [validation status](VALIDATION.md).
 

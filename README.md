@@ -1,8 +1,10 @@
-# Codex Daybook 0.5.6
+# Codex Daybook 0.5.7
 
 Obsidian 桌面插件，公开发布候选版。源码已公开在 [isink/obsidian-codex-daily-sync](https://github.com/isink/obsidian-codex-daily-sync)。**Windows 待实机验证；社区目录审核和社区渠道实际安装仍未完成。采用 MIT 许可证；候选版不代表已上架。**
 
 [English guide](README.en.md) · [隐私说明](PRIVACY.md) · [Windows 验收](WINDOWS-CHECKLIST.md) · [变更及回滚](CHANGELOG.md) · [验证记录](VALIDATION.md) · [双平台验收](ACCEPTANCE.md) · [发布流程](RELEASE.md)
+
+**English summary.** Codex Daybook is a desktop-only Obsidian plugin that saves newly completed local Codex Desktop main tasks as Markdown and links them to the creation day's Dataview trail. It requires Obsidian 1.13.7 or later, Dataview, and a local Codex Desktop installation. The settings interface is available in Simplified Chinese and English; see the [full English guide](README.en.md) for setup, privacy, recovery, and upgrade details.
 
 将开始同步之后新建的本机 **Codex Desktop 主任务**保存为 Markdown，并通过 `daily` 链接加入创建日的 Dataview 轨迹。不是普通 ChatGPT 历史同步器：顶部切换到 ChatGPT 视图不改变底层任务类型。
 

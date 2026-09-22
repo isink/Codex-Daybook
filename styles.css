@@ -38,25 +38,25 @@
 .codex-conversation .callout[data-callout="codex-answer"] .callout-content { display: none; }
 .markdown-source-view.codex-conversation .callout[data-callout="codex-question"] { margin: 0.5em 0 0.5em auto; }
 .markdown-source-view.codex-conversation .callout[data-callout="codex-answer"] { margin: 0.35em 0; }
-.codex-conversation .callout[data-callout="codex-question"] .image-embed,
-.codex-conversation .callout[data-callout="codex-question"] .image-wrapper {
-  display: block !important;
-  width: fit-content !important;
-  max-width: min(240px, 100%) !important;
-  max-height: 180px !important;
-  margin-inline: 0 !important;
+body .workspace-leaf-content .markdown-view-content .codex-conversation .callout[data-callout="codex-question"] .image-embed,
+body .workspace-leaf-content .markdown-view-content .codex-conversation .callout[data-callout="codex-question"] .image-wrapper {
+  display: block;
+  width: fit-content;
+  max-width: min(240px, 100%);
+  max-height: 180px;
+  margin-inline: 0;
 }
-/* Deliberately override Minimal's full-width-media and readable-line-width
-   selectors, but only for image embeds inside our own question cards. */
-.codex-conversation .callout[data-callout="codex-question"] .image-embed img {
-  display: block !important;
-  max-width: min(240px, 100%) !important;
-  max-height: 180px !important;
-  width: auto !important;
-  height: auto !important;
+/* This selector has extra workspace/view scope to override theme media rules
+   by specificity alone, and remains limited to our own question cards. */
+body .workspace-leaf-content .markdown-view-content .codex-conversation .callout[data-callout="codex-question"] .image-embed img {
+  display: block;
+  max-width: min(240px, 100%);
+  max-height: 180px;
+  width: auto;
+  height: auto;
   object-fit: contain;
   border-radius: 8px;
-  margin: 0 !important;
+  margin: 0;
   cursor: zoom-in;
 }
 .codex-conversation {
