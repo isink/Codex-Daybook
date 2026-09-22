@@ -33,7 +33,7 @@ Obsidian 桌面插件，公开发布候选版。源码已公开在 [isink/obsidi
 
 官方浏览器登录由本机 Codex app-server 托管，密码及登录令牌不交给插件、不写入库。Codex 管理并保存登录状态，同一 Codex 配置目录中的其他客户端可能复用该状态。登录页需要联网；本机仍须安装 Codex。登录成功不自动开始同步，需先检查连接。浏览器完成后会自动刷新插件提示；失败时可重试。“取消登录”只取消本次待完成流程，不退出已有账号；暂停、保存其他设置或禁用插件会结束本次登录进程。插件不提供全局退出账号按钮。
 
-[官方登录接口说明](https://developers.openai.com/zh-Hans/docs/app-server#3-使用-chatgpt-登录浏览器流程)。
+[官方登录接口说明](https://learn.chatgpt.com/codex/auth#sign-in-with-chatgpt)。
 
 ## 每日轨迹与正文
 
