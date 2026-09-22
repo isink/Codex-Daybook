@@ -108,11 +108,11 @@ async function buildTab(stateOverrides={},vaultOverrides={}){
   return {plugin,tab};
 }
 
-test('renders both headings, migration warnings and the running/paused status message',async()=>{
+test('renders the one remaining heading (no plugin-name heading, per Obsidian lint), migration warnings and the running/paused status message',async()=>{
   const {tab}=await buildTab({enabled:true,discoveryStartedAt:1700000000,migrationWarnings:['Confirm the time zone for new tasks.'],settings:{...validateSettings(defaults()),consent:true}});
   tab.display();
   const c=tab.containerEl;
-  assert.deepEqual(c.settings.filter(s=>s.heading).map(s=>s.name),['Codex Daybook · 0.5.7 (release candidate)','Conversation list for daily notes']);
+  assert.deepEqual(c.settings.filter(s=>s.heading).map(s=>s.name),['Conversation list for daily notes']);
   const paragraphs=c.children.filter(el=>el.tag==='p');
   assert.ok(paragraphs.some(el=>el.text==='Confirm the time zone for new tasks.'&&el.cls.includes('is-warning')));
   assert.ok(paragraphs.some(el=>el.text==='Syncing'));

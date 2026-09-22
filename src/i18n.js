@@ -5,7 +5,6 @@ const zh={
   "Save settings to apply the selected language.": "保存设置后应用所选语言。",
   "Choose a Codex conversation note": "选择 Codex 对话笔记",
   "Codex conversation": "Codex 对话",
-  "Codex Daybook · {version} (release candidate)": "Codex Daybook · {version}（候选版）",
   "Syncs local Codex Desktop main tasks only — never your general ChatGPT history. Windows support has not been hardware-tested. Folder and time-zone changes apply only to tasks added afterward.": "仅同步本机 Codex Desktop 主任务，不导入普通 ChatGPT 历史记录。Windows 尚未完成实机验收。目录与时区的修改仅适用于之后加入的任务。",
   "Codex executable": "Codex 可执行文件",
   "Leave blank to auto-detect a standard install or PATH entry, or enter a full path. On Windows, pick the real codex.exe — not a .cmd shim or WSL.": "留空可自动检测标准安装位置或 PATH，也可填写完整路径。Windows 请选真实的 codex.exe，不支持 .cmd 启动脚本或 WSL。",

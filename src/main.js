@@ -6,7 +6,6 @@ const {syncBatch}=require('./batch');
 const {handleThumbnailClick}=require('./thumbnails');
 const {upgradeState,validateSettings,startState,QUERY}=require('./settings');
 const {checkConnection}=require('./connection');
-const {version}=require('../manifest.json');
 const {translate,languageForHost}=require('./i18n');
 const {BrowserLogin}=require('./auth');
 
@@ -40,7 +39,9 @@ class SyncSettings extends PluginSettingTab {
   hide(){this.plugin.authMessageEl=null;}
   display(){
     const p=this.plugin,c=this.containerEl;c.empty();const draft={...p.state.settings};const t=p.t.bind(p);
-    new Setting(c).setName(t('Codex Daybook · {version} (release candidate)',{version})).setHeading();
+    // Obsidian's official settings-tab lint (no-problematic-settings-headings)
+    // rejects a heading that repeats the plugin's own name — the settings tab
+    // already shows it. Lead with the description instead of a heading.
     c.createEl('p',{cls:'codex-daybook-note',text:t('Syncs local Codex Desktop main tasks only — never your general ChatGPT history. Windows support has not been hardware-tested. Folder and time-zone changes apply only to tasks added afterward.')});
     for(const warning of p.state.migrationWarnings||[])c.createEl('p',{cls:'codex-daybook-note is-warning',text:t(warning)});
 
