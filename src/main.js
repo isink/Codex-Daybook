@@ -132,11 +132,11 @@ class SyncSettings extends PluginSettingTab {
       .addButton(b=>bindButton(b,t('Log in to Codex'),async()=>{if(p.loginSession?.active)throw {safeMessage:t('A login is already in progress. Finish it in your browser or cancel it here.')};await p.configure(draft);await p.login();}))
       .addButton(b=>bindButton(b,t('Cancel login'),()=>p.cancelLogin()));
 
-    new Setting(basicPanel)
+    new Setting(basicPanel).setName(t('Save and verify')).setDesc(t('Save your settings, then check that Codex is reachable before starting sync.'))
       .addButton(b=>bindButton(b,t('Save settings'),async()=>{await p.configure(draft);p.diagnostic=t('Settings saved. Sync is paused — check the connection to start.');}))
       .addButton(b=>bindButton(b,t('Check connection'),async()=>{await p.configure(draft);await p.connect();}));
-    new Setting(basicPanel)
-      .addButton(b=>bindButton(b,t('Start sync'),async()=>{if(JSON.stringify(validateSettings(draft))!==JSON.stringify(p.state.settings))throw {safeMessage:t('Settings not saved yet — check the connection first.')};await p.begin();}))
+    new Setting(basicPanel).setName(t('Sync control')).setDesc(t('Start sync once the connection check passes — this fixes the starting point. You can pause at any time.'))
+      .addButton(b=>bindButton(b,t('Start sync'),async()=>{if(JSON.stringify(validateSettings(draft))!==JSON.stringify(p.state.settings))throw {safeMessage:t('Settings not saved yet — check the connection first.')};await p.begin();}).setCta())
       .addButton(b=>bindButton(b,t('Pause sync'),()=>p.pause()));
 
     // Daily track tab — off by default, gated behind its own toggle. The

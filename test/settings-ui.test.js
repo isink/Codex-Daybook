@@ -57,10 +57,11 @@ class FakeToggleComponent {
   async toggle(v){this.val=v;for(const fn of this.changeHandlers)await fn(v);}
 }
 class FakeButtonComponent {
-  constructor(){this.label='';this.disabled=false;this.clickHandlers=[];}
+  constructor(){this.label='';this.disabled=false;this.cta=false;this.clickHandlers=[];}
   setButtonText(t){this.label=t;return this;}
   onClick(fn){this.clickHandlers.push(fn);return this;}
   setDisabled(v){this.disabled=v;return this;}
+  setCta(){this.cta=true;return this;}
   async press(){for(const fn of this.clickHandlers)await fn();}
 }
 class FakeSetting {
@@ -371,6 +372,17 @@ test('Start sync calls begin() once the draft matches the saved, validated setti
   await findButton(c,'Start sync').press();
   assert.equal(beginCalled,true);
   assert.equal(message.text,'Sync started');
+});
+
+test('the save/check and start/pause rows have their own labels, and Start sync is styled as the primary action',async()=>{
+  const {tab}=await buildTab();
+  tab.display();
+  const c=tab.containerEl;
+  assert.ok(allSettings(c).some(s=>s.name==='Save and verify'));
+  assert.ok(allSettings(c).some(s=>s.name==='Sync control'));
+  assert.equal(findButton(c,'Start sync').cta,true);
+  assert.equal(findButton(c,'Pause sync').cta,false);
+  assert.equal(findButton(c,'Save settings').cta,false);
 });
 
 test('Pause sync calls pause()',async()=>{
