@@ -5,9 +5,14 @@ const assert=require('node:assert/strict');
 const {migrateState,discoverTasks,isDesktopMain,allAttachments}=require('../src/tasks');
 const {syncBatch,StateWriteError}=require('../src/batch');
 const {parseNote,newNote}=require('../src/core');
+const {defaults}=require('../src/settings');
 const since=1789398000;
 const task=(id,createdAt=since+1,extra={})=>({id,createdAt,name:'同名任务',originator:'Codex Desktop',source:'vscode',parentThreadId:null,ephemeral:false,...extra});
-const initial=()=>({schemaVersion:2,discoveryStartedAt:since,threads:{}});
+// These fixtures simulate an already-migrated, pre-existing installation
+// (they hand syncBatch a raw schemaVersion:2 shape directly, bypassing
+// upgradeState()) — daily track defaults to true for that population, per
+// upgradeState()'s pre-3 migration path, unlike a genuinely fresh install.
+const initial=()=>({schemaVersion:2,discoveryStartedAt:since,threads:{},settings:{...defaults(),dailyTrackEnabled:true}});
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
 
 class Vault {

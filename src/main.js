@@ -44,8 +44,30 @@ class SyncSettings extends PluginSettingTab {
     // already shows it. Lead straight into the settings themselves.
     for(const warning of p.state.migrationWarnings||[])c.createEl('p',{cls:'codex-daybook-note is-warning',text:t(warning)});
 
+    const folderKeys=new Set(['noteFolder','attachmentFolder','dailyFolder']);
+    const folders=existingVaultFolders(p.app.vault),templates=existingVaultMarkdownFiles(p.app.vault),folderHint=t('Start typing to choose an existing folder, or enter a new vault-relative path.'),templateHint=t('Start typing to choose an existing Markdown note, or click Choose template… to search this vault.');
+    // Shared by every folder/template/timezone/interval field, regardless of
+    // which tier's container it ends up rendered in (root, the gated daily
+    // section, or the collapsed advanced section).
+    function addField(container,key,label,help){
+      const setting=new Setting(container).setName(label).setDesc(folderKeys.has(key)?`${help} ${folderHint}`:(key==='dailyTemplate'?`${help} ${templateHint}`:help));
+      let field;
+      setting.addText(input=>{
+        field=input;
+        input.setValue(String(draft[key]));
+        if(folderKeys.has(key))addSuggestions(c,input,`codex-daybook-folder-${key}`,folders);
+        if(key==='dailyTemplate')addSuggestions(c,input,'codex-daybook-template-dailyTemplate',templates);
+        input.onChange(v=>{draft[key]=key==='intervalSeconds'?Number(v):v;});
+      });
+      if(key==='dailyTemplate')setting.addButton(button=>button.setButtonText(t('Choose template…')).setDisabled(!templates.length).onClick(()=>new TemplatePicker(p.app,templates,path=>{draft.dailyTemplate=path;field.setValue(path);},t).open()));
+      return field;
+    }
+
+    // Tier 1 — minimum to collect conversations at all.
     new Setting(c).setName(t('Language')).setDesc(t('Save settings to apply the selected language.'))
       .addDropdown(d=>d.addOption('zh','简体中文').addOption('en','English').setValue(draft.language).onChange(value=>{draft.language=value;}));
+    addField(c,'noteFolder',t('Notes folder'),t('Vault-relative folder for synced conversation notes.'));
+    addField(c,'attachmentFolder',t('Attachments folder'),t('Vault-relative folder for copied images.'));
     new Setting(c).setName(t('Allow access outside the vault')).setDesc(t('The plugin launches the local Codex app-server, reuses your existing ChatGPT login, and reads task data plus any local images explicitly attached to messages. The connection check reads a small sample from one existing task to verify the interface, without importing it. The plugin sends no uploads or telemetry; Codex itself may still use its own account services.')).addToggle(t=>t.setValue(draft.consent).onChange(v=>{draft.consent=v;}));
 
     const bindButton=(b,label,fn)=>b.setButtonText(label).onClick(async()=>{const language=p.state.settings.language;b.setDisabled(true);try{await fn();message.setText(p.diagnostic||t('Settings saved'));}catch(error){message.setText(error.safeMessage?t(error.safeMessage):t('Action failed — check your settings, Codex login and version. Local copies are kept.'));}finally{b.setDisabled(false);if(p.state.settings.language!==language){p.diagnostic=message.textContent;this.update();}}});
@@ -54,8 +76,34 @@ class SyncSettings extends PluginSettingTab {
       .addButton(b=>bindButton(b,t('Cancel login'),()=>p.cancelLogin()));
     const message=c.createEl('p',{cls:'codex-daybook-note',text:p.diagnostic||(p.state.enabled?t('Syncing'):t('Paused — awaiting setup'))});
     p.authMessageEl=message;
+
+    new Setting(c)
+      .addButton(b=>bindButton(b,t('Save settings'),async()=>{await p.configure(draft);p.diagnostic=t('Settings saved. Sync is paused — check the connection to start.');}))
+      .addButton(b=>bindButton(b,t('Check connection'),async()=>{await p.configure(draft);await p.connect();}));
+    new Setting(c)
+      .addButton(b=>bindButton(b,t('Start sync'),async()=>{if(JSON.stringify(validateSettings(draft))!==JSON.stringify(p.state.settings))throw {safeMessage:t('Settings not saved yet — check the connection first.')};await p.begin();}))
+      .addButton(b=>bindButton(b,t('Pause sync'),()=>p.pause()));
+
+    // Tier 2 — daily track, off by default, gated behind its own toggle. The
+    // section is always built (draft.dailyFolder/dailyTemplate keep flowing
+    // through their normal onChange handlers either way) — only `.hidden`
+    // changes on toggle, never a full re-`display()`, so no other unsaved
+    // draft edit is ever discarded by flipping this switch.
+    const dailySection=c.createEl('div',{cls:'codex-daybook-daily-section'});
+    new Setting(c).setName(t('Enable daily track')).setDesc(t('Add a daily: link to each synced conversation, and automatically create that day\'s note if it does not exist yet. The daily notes location and template already have working defaults, so turning this on needs no further setup.'))
+      .addToggle(toggle=>toggle.setValue(draft.dailyTrackEnabled).onChange(v=>{draft.dailyTrackEnabled=v;dailySection.hidden=!v;}));
+    dailySection.hidden=!draft.dailyTrackEnabled;
+    addField(dailySection,'dailyFolder',t('Daily notes location'),t('Daily notes help you find Codex conversations by the date each task was created. Enter a folder inside this vault, such as Daily; a note will be saved as Daily/2026-09-20.md. Existing daily notes are never overwritten.'));
+    addField(dailySection,'dailyTemplate',t('Use your own daily template (optional)'),t('Unsure? Leave this blank. The built-in layout includes a conversation list, displayed by the Dataview plugin. To use your own layout, enter the path to an existing note in this vault, such as Templates/Daily.md. It is used only when creating a daily note.'));
+    new Setting(dailySection).setName(t('Conversation list for daily notes')).setHeading();
+    dailySection.createEl('p',{cls:'codex-daybook-note',text:t('Using your own template or an existing daily note? Paste the code below into it to show links to conversations created that day. Install and enable Dataview to display the list. The built-in template already includes this code.')});
+    dailySection.createEl('p',{cls:'codex-daybook-note',text:t('In a custom template, {{date:YYYY-MM-DD}} becomes the date (for example, 2026-09-20). Other placeholders and Templater scripts are not supported.')});
+    dailySection.createEl('textarea',{cls:'codex-daybook-query',text:QUERY,attr:{readonly:'true',rows:'6','aria-label':t('Dataview query example')}});
+    new Setting(dailySection).addButton(b=>bindButton(b,t('Copy query'),async()=>{await navigator.clipboard.writeText(QUERY);p.diagnostic=t('Query copied to clipboard.');}));
+
+    // Tier 3 — rarely touched, collapsed by default.
     const advanced=c.createEl('details',{cls:'codex-daybook-advanced'});
-    advanced.createEl('summary',{text:t('Advanced: Codex executable')});
+    advanced.createEl('summary',{text:t('Advanced: Codex executable, time zone, check interval')});
     let executableField;
     new Setting(advanced).setName(t('Codex executable')).setDesc(t('Leave blank to auto-detect a standard install or PATH entry, or enter a full path. On Windows, pick the real codex.exe — not a .cmd shim or WSL.'))
       .addText(t=>{executableField=t;t.setValue(draft.executable).onChange(v=>{draft.executable=v;});})
@@ -82,38 +130,8 @@ class SyncSettings extends PluginSettingTab {
         };
         input.click();
       }));
-    const folderKeys=new Set(['noteFolder','attachmentFolder','dailyFolder']);
-    const folders=existingVaultFolders(p.app.vault),templates=existingVaultMarkdownFiles(p.app.vault),folderHint=t('Start typing to choose an existing folder, or enter a new vault-relative path.'),templateHint=t('Start typing to choose an existing Markdown note, or click Choose template… to search this vault.');
-    for(const [key,label,help] of [
-      ['noteFolder',t('Notes folder'),t('Vault-relative folder for synced conversation notes.')],
-      ['attachmentFolder',t('Attachments folder'),t('Vault-relative folder for copied images.')],
-      ['dailyFolder',t('Daily notes location'),t('Daily notes help you find Codex conversations by the date each task was created. Enter a folder inside this vault, such as Daily; a note will be saved as Daily/2026-09-20.md. Existing daily notes are never overwritten.')],
-      ['dailyTemplate',t('Use your own daily template (optional)'),t('Unsure? Leave this blank. The built-in layout includes a conversation list, displayed by the Dataview plugin. To use your own layout, enter the path to an existing note in this vault, such as Templates/Daily.md. It is used only when creating a daily note.')],
-      ['timeZone',t('Time zone'),t('IANA name, e.g. Asia/Tokyo, Europe/London.')],
-      ['intervalSeconds',t('Check interval (seconds)'),t('5–3600 seconds; default is 10.')]]){
-      const setting=new Setting(c).setName(label).setDesc(folderKeys.has(key)?`${help} ${folderHint}`:(key==='dailyTemplate'?`${help} ${templateHint}`:help));
-      let field;
-      setting.addText(input=>{
-        field=input;
-        input.setValue(String(draft[key]));
-        if(folderKeys.has(key))addSuggestions(c,input,`codex-daybook-folder-${key}`,folders);
-        if(key==='dailyTemplate')addSuggestions(c,input,'codex-daybook-template-dailyTemplate',templates);
-        input.onChange(v=>{draft[key]=key==='intervalSeconds'?Number(v):v;});
-      });
-      if(key==='dailyTemplate')setting.addButton(button=>button.setButtonText(t('Choose template…')).setDisabled(!templates.length).onClick(()=>new TemplatePicker(p.app,templates,path=>{draft.dailyTemplate=path;field.setValue(path);},t).open()));
-    }
-    new Setting(c)
-      .addButton(b=>bindButton(b,t('Save settings'),async()=>{await p.configure(draft);p.diagnostic=t('Settings saved. Sync is paused — check the connection to start.');}))
-      .addButton(b=>bindButton(b,t('Check connection'),async()=>{await p.configure(draft);await p.connect();}));
-    new Setting(c)
-      .addButton(b=>bindButton(b,t('Start sync'),async()=>{if(JSON.stringify(validateSettings(draft))!==JSON.stringify(p.state.settings))throw {safeMessage:t('Settings not saved yet — check the connection first.')};await p.begin();}))
-      .addButton(b=>bindButton(b,t('Pause sync'),()=>p.pause()));
-
-    new Setting(c).setName(t('Conversation list for daily notes')).setHeading();
-    c.createEl('p',{cls:'codex-daybook-note',text:t('Using your own template or an existing daily note? Paste the code below into it to show links to conversations created that day. Install and enable Dataview to display the list. The built-in template already includes this code.')});
-    c.createEl('p',{cls:'codex-daybook-note',text:t('In a custom template, {{date:YYYY-MM-DD}} becomes the date (for example, 2026-09-20). Other placeholders and Templater scripts are not supported.')});
-    c.createEl('textarea',{cls:'codex-daybook-query',text:QUERY,attr:{readonly:'true',rows:'6','aria-label':t('Dataview query example')}});
-    new Setting(c).addButton(b=>bindButton(b,t('Copy query'),async()=>{await navigator.clipboard.writeText(QUERY);p.diagnostic=t('Query copied to clipboard.');}));
+    addField(advanced,'timeZone',t('Time zone'),t('IANA name, e.g. Asia/Tokyo, Europe/London.'));
+    addField(advanced,'intervalSeconds',t('Check interval (seconds)'),t('5–3600 seconds; default is 10.'));
   }
 }
 module.exports=class CodexDailySync extends Plugin {
@@ -150,7 +168,7 @@ module.exports=class CodexDailySync extends Plugin {
       return Array.isArray(list)&&list.includes('dataview');
     }catch{return false;}
   }
-  async dataview(){if(!(await this.dataviewEnabled()))throw {safeMessage:this.t('Install and enable Dataview before starting sync.')};}
+  async dataview(){if(this.state.settings.dailyTrackEnabled && !(await this.dataviewEnabled()))throw {safeMessage:this.t('Install and enable Dataview before starting sync.')};}
   // Read-only lookup through Obsidian's own link index — resolves a plain
   // wikilink Codex wrote in its own reply to a file it already saved directly
   // into the vault. Never scans paths, imports, or creates anything.

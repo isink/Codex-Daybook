@@ -1,6 +1,6 @@
 # Codex Daybook 0.5.7
 
-Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Markdown 笔记，并按创建日加入 Dataview 每日轨迹。不是 ChatGPT 历史同步器：只处理本机 Codex Desktop 主任务，且只有开始同步之后新建的任务才会被采集。
+Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Markdown 笔记。可选开启每日轨迹，按创建日加入 Dataview 每日轨迹。不是 ChatGPT 历史同步器：只处理本机 Codex Desktop 主任务，且只有开始同步之后新建的任务才会被采集。
 
 公开发布候选版，源码见 [isink/obsidian-codex-daily-sync](https://github.com/isink/obsidian-codex-daily-sync)，采用 MIT 许可证。**Windows 尚未完成实机验收，社区目录审核也未完成；候选版不等于已上架。**
 
@@ -8,11 +8,11 @@ Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Mar
 
 ## 安装
 
-需要 Obsidian 1.13.7 及以上版本、已启用的 Dataview 插件、本机安装的 Codex Desktop。
+需要 Obsidian 1.13.7 及以上版本、本机安装的 Codex Desktop；只有开启每日轨迹功能时才需要 Dataview 插件。
 
 1. 解压安装 ZIP，将其中 `codex-daily-sync` 文件夹放入库的 `.obsidian/plugins/`。
-2. 在 Obsidian 的社区插件设置中启用 Dataview，再启用 Codex Daybook。
-3. 首次启用只会提示设置：笔记目录、附件目录、每日目录、可选每日模板、时区、检查间隔（默认 10 秒，可设 5–3600 秒）。
+2. 在 Obsidian 的社区插件设置中启用 Codex Daybook（若计划使用每日轨迹，也一并启用 Dataview）。
+3. 首次启用只会提示最基础的设置：笔记目录、附件目录。每日轨迹默认关闭，一键开启即可显示每日目录与模板（均已有可用默认值）；时区、检查间隔在高级设置中。
 4. 确认允许库外访问，点击“登录 Codex”完成 ChatGPT 登录，再点击“检查连接”验证接口。没有可验证的主任务时，请先在 Codex 完成一个测试任务。
 5. 检查通过后点击“开始同步”，此时固定同步起点；只有此后新建的 Codex 主任务会被采集。
 

@@ -1,6 +1,6 @@
 # Codex Daybook 0.5.7 — local release candidate
 
-Desktop Obsidian plugin that saves completed local **Codex Desktop** conversations as Markdown notes and links them into your daily Dataview trail. Not a ChatGPT history importer: it only handles local Codex Desktop main tasks, and only tasks created after you start sync are ever captured.
+Desktop Obsidian plugin that saves completed local **Codex Desktop** conversations as Markdown notes. An optional daily track can link them into a daily Dataview trail. Not a ChatGPT history importer: it only handles local Codex Desktop main tasks, and only tasks created after you start sync are ever captured.
 
 Public release candidate. Source is at [isink/obsidian-codex-daily-sync](https://github.com/isink/obsidian-codex-daily-sync), licensed under MIT. **Windows hardware validation and community-directory review are not yet complete; a release candidate is not a marketplace listing.**
 
@@ -8,11 +8,11 @@ Public release candidate. Source is at [isink/obsidian-codex-daily-sync](https:/
 
 ## Setup
 
-Requires Obsidian 1.13.7+, enabled Dataview, and a local Codex Desktop installation.
+Requires Obsidian 1.13.7+ and a local Codex Desktop installation. Dataview is only needed if you turn on the optional daily track feature.
 
 1. Extract the installation ZIP into your vault's `.obsidian/plugins/`, keeping the `codex-daily-sync` folder.
-2. Enable Dataview and this plugin in Obsidian's community plugins settings.
-3. First activation only shows settings: notes folder, attachments folder, daily folder, optional daily template, time zone, and check interval (default 10s, 5–3600s).
+2. Enable this plugin in Obsidian's community plugins settings (also enable Dataview if you plan to use daily track).
+3. First activation only shows the minimum settings: notes folder and attachments folder. Daily track is off by default; turning it on is a single toggle and reveals the daily folder and template (both already have working defaults). Time zone and check interval live under Advanced settings.
 4. Acknowledge outside-vault access, click **Log in to Codex** to sign in with ChatGPT, then **Check connection** to verify the interface. If no verifiable main task exists yet, finish a test task in Codex first.
 5. Once the check passes, click **Start sync**. This fixes the sync starting point — only Codex main tasks created afterward are captured.
 

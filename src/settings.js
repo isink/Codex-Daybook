@@ -2,7 +2,7 @@ const {parseNote,noteThreadId,dateParts}=require('./core');
 const {migrateState}=require('./tasks');
 const QUERY='```dataview\nLIST WITHOUT ID captured_at + "　→　" + file.link\nWHERE contains(file.outlinks, this.file.link)\nSORT captured_at ASC\n```';
 const DEFAULT_TEMPLATE='---\ntype: daily\ndate: "{{date:YYYY-MM-DD}}"\n---\n\n'+QUERY+'\n';
-function defaults(language='en'){return {language,executable:'',noteFolder:'Codex Conversations',attachmentFolder:'Attachments/Codex',dailyFolder:'Daily',dailyTemplate:'',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC',intervalSeconds:10,consent:false};}
+function defaults(language='en'){return {language,executable:'',noteFolder:'Codex Conversations',attachmentFolder:'Attachments/Codex',dailyFolder:'Daily',dailyTemplate:'',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC',intervalSeconds:10,consent:false,dailyTrackEnabled:false};}
 function vaultPath(value,optional=false){
   if(typeof value!=='string')throw Error('Folders must be vault-relative paths.');
   const p=value.trim().replaceAll('\\','/');
@@ -12,8 +12,9 @@ function vaultPath(value,optional=false){
 }
 function validateSettings(s){
   if(!s||typeof s!=='object'||typeof s.consent!=='boolean'||typeof s.timeZone!=='string'||!s.timeZone)throw Error('Settings are missing a valid time zone or access confirmation.');
-  const out={language:'en',...s};
+  const out={language:'en',dailyTrackEnabled:false,...s};
   if(!['zh','en'].includes(out.language))throw Error('Choose Chinese or English.');
+  if(typeof out.dailyTrackEnabled!=='boolean')throw Error('Invalid daily-track setting.');
   for(const key of ['noteFolder','attachmentFolder','dailyFolder'])out[key]=vaultPath(s[key]);
   out.dailyTemplate=vaultPath(s.dailyTemplate,true);
   if(out.dailyTemplate && !out.dailyTemplate.endsWith('.md'))throw Error('The daily template must be a Markdown file.');
@@ -22,9 +23,10 @@ function validateSettings(s){
   if(typeof s.executable!=='string'||/[\r\n\0]/.test(s.executable))throw Error('Invalid executable path.');
   return out;
 }
-function routing(s,thread){return {noteFolder:s.noteFolder,attachmentFolder:s.attachmentFolder,dailyFolder:s.dailyFolder,dailyTemplate:s.dailyTemplate,timeZone:s.timeZone,day:dateParts(thread.createdAt,s.timeZone).day};}
+function routing(s,thread){return {noteFolder:s.noteFolder,attachmentFolder:s.attachmentFolder,dailyFolder:s.dailyFolder,dailyTemplate:s.dailyTemplate,timeZone:s.timeZone,day:dateParts(thread.createdAt,s.timeZone).day,dailyTrackEnabled:s.dailyTrackEnabled};}
 async function upgradeState(saved={},vault,dailyConfig={},language='en'){
   if(saved.schemaVersion===3 && saved.settings && saved.settings.language===undefined)saved={...saved,settings:{...saved.settings,language}};
+  if(saved.schemaVersion===3 && saved.settings && saved.settings.dailyTrackEnabled===undefined)saved={...saved,settings:{...saved.settings,dailyTrackEnabled:true}};
   if(saved.schemaVersion===3){
     validateSettings(saved.settings);
     if(!saved.threads || Array.isArray(saved.threads)||typeof saved.threads!=='object' || (saved.discoveryStartedAt!==null&&(!Number.isSafeInteger(saved.discoveryStartedAt)||saved.discoveryStartedAt<=0)))throw Error('Sync configuration is corrupted — stopped. The sync starting point was not reset.');
@@ -45,6 +47,7 @@ async function upgradeState(saved={},vault,dailyConfig={},language='en'){
   if(!old.schemaVersion && old.notePath && !old.threadId){const f=vault.getAbstractFileByPath(old.notePath);old.threadId=f&&noteThreadId(await vault.read(f));if(!old.threadId)throw Error('Couldn\'t confirm the task ID from the old note — migration stopped.');}
   old=migrateState(old);
   const settings=defaults(language),warnings=[],threads={};
+  settings.dailyTrackEnabled=true; // this migration path is exclusively existing users
   const notes=new Set(),assets=new Set(),days=new Set();
   if(dailyConfig.folder)settings.dailyFolder=dailyConfig.folder;
   if(dailyConfig.template)settings.dailyTemplate=dailyConfig.template.endsWith('.md')?dailyConfig.template:dailyConfig.template+'.md';

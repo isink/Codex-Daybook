@@ -50,6 +50,27 @@ test('personal additions and custom metadata survive; identical sync has zero ch
   assert.equal(c.parseNote(updated).doc.get('daily'),'[[Daily/2026-09-14]]');
 });
 
+test('daily track disabled: no daily: field on a new note, ensureDaily is skipped, but an existing daily: link is still preserved on update',async t=>{
+  // New note with daily track off: no `daily:` frontmatter at all.
+  const off=c.newNote(thread,'正文',100000,{dailyTrackEnabled:false});
+  assert.equal(c.parseNote(off).doc.get('daily'),undefined);
+
+  // An existing note that already carries a daily: link (e.g. written while
+  // enabled) keeps it even if the task's routing now reads as disabled —
+  // updateNote() never strips metadata it didn't itself just compute.
+  const on=c.newNote(thread,'正文',100000,{dailyTrackEnabled:true});
+  assert.equal(c.parseNote(on).doc.get('daily'),'[[Daily/2026-09-14]]');
+  const updated=c.updateNote(on,thread,'更新正文',200000,{dailyTrackEnabled:false});
+  assert.equal(c.parseNote(updated).doc.get('daily'),'[[Daily/2026-09-14]]');
+
+  // syncToVault(): disabled means ensureDaily() is never invoked, so no
+  // Daily/<date>.md file is ever created for that task.
+  const vault=await testVault(t);
+  const result=await c.syncToVault(vault,{thread,transcript:'正文'},{route:{dailyTrackEnabled:false}});
+  assert.equal(vault.getAbstractFileByPath('Daily/2026-09-14.md'),null);
+  assert.equal(result.dailyCreated,false);
+});
+
 test('malformed markers, foreign ID and duplicate YAML fail without producing output',()=>{
   const valid=c.newNote(thread,'原文');
   for(const damaged of [valid.replace(c.START,''),valid+c.START,valid.replace(c.END,c.START),valid.replace(thread.id,'another'),valid.replace('type: codex-conversation','type: codex-conversation\ntype: duplicate')]){

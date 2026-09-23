@@ -87,3 +87,5 @@ body .workspace-leaf-content .markdown-view-content .codex-conversation .callout
 
 .codex-daybook-advanced { margin: 1em 0; }
 .codex-daybook-advanced > summary { cursor: pointer; color: var(--text-muted); padding: 0.5em 0; }
+
+.codex-daybook-daily-section { margin: 0.2em 0; }

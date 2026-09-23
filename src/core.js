@@ -123,7 +123,7 @@ function boundaries(body) {
 
 function metadata(thread, now, route={}) {
   const created = dateParts(thread.createdAt,route.timeZone);
-  return {title:thread.name || 'Codex 对话',type:'codex-conversation',codex_thread_id:thread.id,created_at:created.iso,captured_at:created.time,daily:`[[${route.dailyFolder||'Daily'}/${route.day||created.day}]]`,codex_synced_at:dateParts(now/1000,route.timeZone).iso};
+  return {title:thread.name || 'Codex 对话',type:'codex-conversation',codex_thread_id:thread.id,created_at:created.iso,captured_at:created.time,...(route.dailyTrackEnabled!==false?{daily:`[[${route.dailyFolder||'Daily'}/${route.day||created.day}]]`}:{}),codex_synced_at:dateParts(now/1000,route.timeZone).iso};
 }
 
 function newNote(thread, transcript, now = Date.now(),route={}) {
@@ -257,8 +257,11 @@ async function syncToVault(vault, snapshot, {notePath=null, alive=()=>true, now=
     next=newNote(thread,transcript,now,route);
   }
   check();
-  const oldDaily=previous&&/^\[\[(.+)\/(\d{4}-\d{2}-\d{2})\]\]$/.exec(parseNote(previous).doc.get('daily')||'');
-  const dailyCreated=await ensureDaily(vault,oldDaily?.[2]||route.day||dateParts(thread.createdAt,route.timeZone).day,oldDaily?{...route,dailyFolder:oldDaily[1]}:route);
+  let dailyCreated=false;
+  if(route.dailyTrackEnabled!==false){
+    const oldDaily=previous&&/^\[\[(.+)\/(\d{4}-\d{2}-\d{2})\]\]$/.exec(parseNote(previous).doc.get('daily')||'');
+    dailyCreated=await ensureDaily(vault,oldDaily?.[2]||route.day||dateParts(thread.createdAt,route.timeZone).day,oldDaily?{...route,dailyFolder:oldDaily[1]}:route);
+  }
   check();
   if(file && (next!==previous || ensureIndexed)) {
     await vault.process(file,current=>{check();return updateNote(current,thread,transcript,now,route)+(ensureIndexed?'\n':'');});

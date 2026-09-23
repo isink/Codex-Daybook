@@ -14,7 +14,7 @@ test('archive/delete/read failures preserve local note, mappings and daily; conn
   }finally{Module._load=original;}
   for(const reason of ['not found','archived unavailable','ECONNRESET']) {
     const plugin=new PluginClass();let writes=0;
-    plugin.state={schemaVersion:2,discoveryStartedAt:1789400000,threads:{task:{notePath:'Codex Conversations/local.md',attachments:{a:{path:'Attachments/saved.png'}},lastSuccess:'previous'}}};
+    plugin.state={schemaVersion:2,discoveryStartedAt:1789400000,settings:{dailyTrackEnabled:true},threads:{task:{notePath:'Codex Conversations/local.md',attachments:{a:{path:'Attachments/saved.png'}},lastSuccess:'previous'}}};
     const before=JSON.stringify(plugin.state);
     plugin.running=true;plugin.stopped=false;plugin.generation=0;
     plugin.status={setText:()=>{}};

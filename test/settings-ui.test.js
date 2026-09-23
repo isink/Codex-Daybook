@@ -67,11 +67,12 @@ class FakeSetting {
   addButton(cb){const b=new FakeButtonComponent();this.components.push(b);cb(b);return this;}
 }
 function allSettings(c){return [...(c.settings||[]),...c.children.flatMap(allSettings)];}
+function findEl(c,predicate){if(predicate(c))return c;for(const child of c.children){const found=findEl(child,predicate);if(found)return found;}return undefined;}
 function findButton(c,label){
   for(const s of allSettings(c))for(const comp of s.components)if(comp instanceof FakeButtonComponent&&comp.label===label)return comp;
   throw Error('button not found: '+label);
 }
-function textComponents(c){return [...(c.children.find(x=>x.tag==='details')?.settings||[]),...(c.settings||[])].map(s=>s.components.find(x=>x instanceof FakeTextComponent)).filter(Boolean);}
+function textComponents(c){return allSettings(c).map(s=>s.components.find(x=>x instanceof FakeTextComponent)).filter(Boolean);}
 function statusMessage(c){return c.children.find(el=>el.tag==='p'&&(el.text==='Syncing'||el.text==='Paused — awaiting setup'));}
 
 // Load src/main.js exactly once, with a full obsidian mock (including Setting,
@@ -112,16 +113,52 @@ test('renders the one remaining heading (no plugin-name heading, per Obsidian li
   const {tab}=await buildTab({enabled:true,discoveryStartedAt:1700000000,migrationWarnings:['Confirm the time zone for new tasks.'],settings:{...validateSettings(defaults()),consent:true}});
   tab.display();
   const c=tab.containerEl;
-  assert.deepEqual(c.settings.filter(s=>s.heading).map(s=>s.name),['Conversation list for daily notes']);
+  assert.deepEqual(allSettings(c).filter(s=>s.heading).map(s=>s.name),['Conversation list for daily notes']);
   const paragraphs=c.children.filter(el=>el.tag==='p');
   assert.ok(paragraphs.some(el=>el.text==='Confirm the time zone for new tasks.'&&el.cls.includes('is-warning')));
   assert.ok(paragraphs.some(el=>el.text==='Syncing'));
 });
 
+test('a fresh install starts with daily track off and its section hidden; enabling it needs no other typing to work',async()=>{
+  const {plugin,tab}=await buildTab();
+  tab.display();
+  const c=tab.containerEl;
+  const dailySection=c.children.find(el=>el.cls==='codex-daybook-daily-section');
+  assert.ok(dailySection);assert.equal(dailySection.hidden,true);
+  const toggle=allSettings(c).find(s=>s.name==='Enable daily track').components.find(x=>x instanceof FakeToggleComponent);
+  assert.equal(toggle.val,false);
+  await toggle.toggle(true);
+  assert.equal(dailySection.hidden,false);
+  // The fields underneath already carry the working built-in defaults —
+  // enabling needs no further typing.
+  const fields=textComponents(c);
+  assert.equal(fields[2].value,'Daily');assert.equal(fields[3].value,'');
+  let captured;plugin.configure=async d=>{captured=d;};
+  await findButton(c,'Save settings').press();
+  assert.equal(captured.dailyTrackEnabled,true);
+  assert.equal(captured.dailyFolder,'Daily');
+});
+
+test('toggling daily track does not discard an unrelated unsaved draft edit (no full re-display on toggle)',async()=>{
+  const {plugin,tab}=await buildTab();
+  tab.display();
+  const c=tab.containerEl;
+  await textComponents(c)[0].type('Not Yet Saved'); // noteFolder, unrelated to the toggle
+  const dailySection=c.children.find(el=>el.cls==='codex-daybook-daily-section');
+  const toggle=allSettings(c).find(s=>s.name==='Enable daily track').components.find(x=>x instanceof FakeToggleComponent);
+  await toggle.toggle(true);
+  assert.equal(dailySection.hidden,false);
+  assert.equal(textComponents(c)[0].value,'Not Yet Saved');
+  let captured;plugin.configure=async d=>{captured=d;};
+  await findButton(c,'Save settings').press();
+  assert.equal(captured.noteFolder,'Not Yet Saved');
+  assert.equal(captured.dailyTrackEnabled,true);
+});
+
 test('renders the Dataview query textarea read-only with the exact query text',async()=>{
   const {tab}=await buildTab();
   tab.display();
-  const textarea=tab.containerEl.children.find(el=>el.tag==='textarea');
+  const textarea=findEl(tab.containerEl,el=>el.tag==='textarea');
   assert.equal(textarea.text,QUERY);
   assert.equal(textarea.attrs.readonly,'true');
   assert.equal(textarea.cls,'codex-daybook-query');
@@ -131,11 +168,11 @@ test('text fields initialize from settings and flow into the draft; interval coe
   const {plugin,tab}=await buildTab();
   tab.display();
   const c=tab.containerEl;
-  const fields=textComponents(c); // executable, noteFolder, attachmentFolder, dailyFolder, dailyTemplate, timeZone, intervalSeconds
+  const fields=textComponents(c); // noteFolder, attachmentFolder, dailyFolder, dailyTemplate, executable, timeZone, intervalSeconds
   assert.equal(fields.length,7);
-  assert.equal(fields[1].value,'Codex Conversations');
+  assert.equal(fields[0].value,'Codex Conversations');
   assert.equal(fields[6].value,'10');
-  await fields[1].type('New Folder');
+  await fields[0].type('New Folder');
   await fields[6].type('30');
   let captured;plugin.configure=async d=>{captured=d;};
   await findButton(c,'Save settings').press();
@@ -154,12 +191,12 @@ test('folder fields suggest existing vault folders and still accept a new path',
     ['00_Inbox','90_Templates','90_Templates/Daily']
   ]);
   const fields=textComponents(tab.containerEl);
-  assert.equal(fields[1].inputEl.attrs.list,'codex-daybook-folder-noteFolder');
-  assert.equal(fields[2].inputEl.attrs.list,'codex-daybook-folder-attachmentFolder');
-  assert.equal(fields[3].inputEl.attrs.list,'codex-daybook-folder-dailyFolder');
-  assert.equal(fields[4].inputEl.attrs.list,undefined);
-  await fields[1].type('New Folder');
-  assert.equal(fields[1].value,'New Folder');
+  assert.equal(fields[0].inputEl.attrs.list,'codex-daybook-folder-noteFolder');
+  assert.equal(fields[1].inputEl.attrs.list,'codex-daybook-folder-attachmentFolder');
+  assert.equal(fields[2].inputEl.attrs.list,'codex-daybook-folder-dailyFolder');
+  assert.equal(fields[3].inputEl.attrs.list,undefined);
+  await fields[0].type('New Folder');
+  assert.equal(fields[0].value,'New Folder');
 });
 
 test('daily template suggests Markdown files and exposes a template chooser',async()=>{
@@ -167,7 +204,7 @@ test('daily template suggests Markdown files and exposes a template chooser',asy
   tab.display();
   const list=tab.containerEl.children.find(el=>el.attrs.id==='codex-daybook-template-dailyTemplate');
   assert.deepEqual(list.children.map(option=>option.attrs.value),['90_Templates/Daily.md','90_Templates/Meeting.md']);
-  assert.equal(textComponents(tab.containerEl)[4].inputEl.attrs.list,'codex-daybook-template-dailyTemplate');
+  assert.equal(textComponents(tab.containerEl)[3].inputEl.attrs.list,'codex-daybook-template-dailyTemplate');
   assert.equal(findButton(tab.containerEl,'Choose template…').disabled,false);
 });
 
@@ -195,7 +232,7 @@ test('executable file picker: a selected file updates the draft and the executab
   input.files=[{path:'/opt/homebrew/bin/codex'}];
   input.onchange();
   assert.equal(input.removed,true);
-  assert.equal(c.querySelectorAll('input[type=text]')[0].value,'/opt/homebrew/bin/codex');
+  assert.equal(textComponents(c)[4].value,'/opt/homebrew/bin/codex');
   let captured;plugin.configure=async d=>{captured=d;};
   await findButton(c,'Save settings').press();
   assert.equal(captured.executable,'/opt/homebrew/bin/codex');
@@ -213,7 +250,7 @@ test('executable file picker falls back to electron.webUtils.getPathForFile when
     Module._load=function(id,...args){if(id==='electron')return {webUtils:{getPathForFile:()=>'/resolved/from/webUtils'}};return original.call(this,id,...args);};
     input.onchange();
   }finally{Module._load=original;}
-  assert.equal(c.querySelectorAll('input[type=text]')[0].value,'/resolved/from/webUtils');
+  assert.equal(textComponents(c)[4].value,'/resolved/from/webUtils');
 });
 
 test('Scan fills in the executable field and reports the path on success',async()=>{
@@ -222,7 +259,7 @@ test('Scan fills in the executable field and reports the path on success',async(
   const c=tab.containerEl,message=statusMessage(c);
   plugin.detectExecutable=()=>'/opt/homebrew/bin/codex';
   await findButton(c,'Scan').press();
-  assert.equal(c.querySelectorAll('input[type=text]')[0].value,'/opt/homebrew/bin/codex');
+  assert.equal(textComponents(c)[4].value,'/opt/homebrew/bin/codex');
   assert.equal(message.text,'Found Codex at /opt/homebrew/bin/codex.');
   let captured;plugin.configure=async d=>{captured=d;};
   await findButton(c,'Save settings').press();
@@ -233,10 +270,10 @@ test('Scan reports a translated, actionable message when auto-detection fails, a
   const {plugin,tab}=await buildTab();
   tab.display();
   const c=tab.containerEl,message=statusMessage(c);
-  await textComponents(c)[0].type('/keep/this/path');
+  await textComponents(c)[4].type('/keep/this/path');
   plugin.detectExecutable=()=>{throw Error('Codex executable not found — choose it in settings. Nothing is installed or added to PATH automatically.');};
   await findButton(c,'Scan').press();
-  assert.equal(c.querySelectorAll('input[type=text]')[0].value,'/keep/this/path');
+  assert.equal(textComponents(c)[4].value,'/keep/this/path');
   assert.equal(message.text,'Codex executable not found — choose it in settings. Nothing is installed or added to PATH automatically.');
 });
 
@@ -273,7 +310,7 @@ test('Start sync refuses without calling begin() when the draft was never saved'
   const {plugin,tab}=await buildTab();
   tab.display();
   const c=tab.containerEl,message=statusMessage(c);
-  await textComponents(c)[1].type('Unsaved Folder'); // mutate the draft without clicking Save settings
+  await textComponents(c)[0].type('Unsaved Folder'); // mutate the draft without clicking Save settings
   let beginCalled=false;plugin.begin=async()=>{beginCalled=true;};
   await findButton(c,'Start sync').press();
   assert.equal(beginCalled,false);
@@ -338,7 +375,7 @@ test('Chinese selection saves with the draft, refreshes the UI and commands, and
   const {plugin,tab}=await buildTab();tab.display();const c=tab.containerEl;
   const dropdown=c.settings.flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent);
   assert.deepEqual(dropdown.options,{zh:'简体中文',en:'English'});
-  await textComponents(c)[1].type('Custom Notes');await dropdown.select('zh');
+  await textComponents(c)[0].type('Custom Notes');await dropdown.select('zh');
   assert.equal(plugin.state.settings.language,'en','selection alone is not saved');
   let stored;plugin.saveData=async state=>{stored=JSON.parse(JSON.stringify(state));};
   await findButton(c,'Save settings').press();
@@ -377,6 +414,8 @@ test('login controls are visible and the executable picker is inside collapsed a
   assert.ok(findButton(c,'Log in to Codex'));assert.ok(findButton(c,'Cancel login'));
   const details=c.children.find(x=>x.tag==='details');assert.ok(details);assert.equal(details.attrs.open,undefined);
   assert.ok(details.settings.some(s=>s.name==='Codex executable'));
+  assert.ok(details.settings.some(s=>s.name==='Time zone'));
+  assert.ok(details.settings.some(s=>s.name==='Check interval (seconds)'));
 });
 test('login reuses an existing ChatGPT account without starting OAuth or importing notes',async()=>{
   const {plugin}=await buildTab({settings:{...defaults(),consent:true}});const before=JSON.stringify(plugin.state);const methods=[];let opened=0,stopped=0;

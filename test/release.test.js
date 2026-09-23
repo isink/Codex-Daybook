@@ -15,6 +15,15 @@ test('fresh setup never reads vault or creates cutoff until consent and successf
   const started=startState(state,true,2000123);assert.equal(started.discoveryStartedAt,2001);
   const reload=await upgradeState({...started,enabled:false});assert.equal(startState(reload,true,9000000).discoveryStartedAt,2001);
 });
+test('a fresh install defaults daily track off; an existing schemaVersion-3 config missing the field is backfilled to on, an explicit off is respected',async()=>{
+  const state=await upgradeState({},new Proxy({},{get(){throw Error('Unexpected read');}}));
+  assert.equal(state.settings.dailyTrackEnabled,false,'brand new installs start with daily track off');
+  const legacy={...state,settings:{...state.settings},schemaVersion:3};delete legacy.settings.dailyTrackEnabled;
+  const backfilled=await upgradeState(legacy);
+  assert.equal(backfilled.settings.dailyTrackEnabled,true,'a config saved before this field existed keeps its daily notes working');
+  const explicitOff={...backfilled,settings:{...backfilled.settings,dailyTrackEnabled:false}};
+  assert.equal((await upgradeState(explicitOff)).settings.dailyTrackEnabled,false,'a user\'s own saved choice is never overwritten');
+});
 test('settings reject escape paths, Windows devices, invalid zone and interval',()=>{
   for(const noteFolder of ['../outside','/absolute','C:\\outside','NUL','folder/COM1.txt','a//b','.obsidian','a/..','a.','a|b'])assert.throws(()=>validateSettings({...defaults(),noteFolder}));
   assert.equal(validateSettings({...defaults(),noteFolder:'笔记\\Codex'}).noteFolder,'笔记/Codex');
@@ -49,6 +58,7 @@ test('legacy migration infers paths, retains mappings/cutoff/daily, never writes
   const vault={getAbstractFileByPath:p=>p==='Inbox/Example.md'?{path:p}:null,read:async()=>original};
   const next=await upgradeState(data,vault,{folder:'Journal',template:'Templates/Daily'});
   assert.equal(next.settings.noteFolder,'Inbox');assert.equal(next.settings.attachmentFolder,'Media/Codex');assert.equal(next.discoveryStartedAt,data.discoveryStartedAt);
+  assert.equal(next.settings.dailyTrackEnabled,true,'pre-existing users keep daily track on, unlike a fresh install');
   assert.deepEqual(next.threads.fixture.attachments,data.threads.fixture.attachments);assert.equal(next.enabled,false);
   const changed=updateNote(original,thread,'Updated',1900000000,routing({...defaults(),dailyFolder:'Elsewhere',timeZone:'Asia/Tokyo'},thread));
   for(const key of ['daily','created_at','captured_at'])assert.equal(parseNote(changed).doc.get(key),parseNote(original).doc.get(key));
@@ -88,7 +98,10 @@ test('dataview check reads community-plugins.json through the public adapter, ne
   content='["other-plugin"]';assert.equal(await p.dataviewEnabled(),false);
   content='not json';assert.equal(await p.dataviewEnabled(),false);
   p.app.vault.adapter.read=async()=>{throw Error('missing file');};assert.equal(await p.dataviewEnabled(),false);
+  p.state={settings:{dailyTrackEnabled:true}};
   await assert.rejects(()=>p.dataview(),e=>/Dataview/.test(e.safeMessage));
+  p.state.settings.dailyTrackEnabled=false;
+  await p.dataview(); // daily track off: Dataview is not required, no throw
 });
 test('resolveEmbed reads Obsidian\'s own link index, and refuses a resolved folder',()=>{
   const Module=require('node:module'),original=Module._load;let Plugin;
