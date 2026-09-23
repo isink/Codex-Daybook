@@ -15,6 +15,9 @@ function existingVaultFolders(vault){
 function existingVaultMarkdownFiles(vault){
   try{return [...new Set((vault?.getMarkdownFiles?.()||[]).map(file=>file.path).filter(path=>path?.endsWith('.md')))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));}catch{return [];}
 }
+function availableTimeZones(){
+  try{return Intl.supportedValuesOf('timeZone');}catch{return [];}
+}
 function addSuggestions(container,input,id,paths){
   if(!paths.length)return;
   const list=container.createEl('datalist',{attr:{id}});
@@ -45,18 +48,19 @@ class SyncSettings extends PluginSettingTab {
     for(const warning of p.state.migrationWarnings||[])c.createEl('p',{cls:'codex-daybook-note is-warning',text:t(warning)});
 
     const folderKeys=new Set(['noteFolder','attachmentFolder','dailyFolder']);
-    const folders=existingVaultFolders(p.app.vault),templates=existingVaultMarkdownFiles(p.app.vault),folderHint=t('Start typing to choose an existing folder, or enter a new vault-relative path.'),templateHint=t('Start typing to choose an existing Markdown note, or click Choose template… to search this vault.');
+    const folders=existingVaultFolders(p.app.vault),templates=existingVaultMarkdownFiles(p.app.vault),timeZones=availableTimeZones(),folderHint=t('Start typing to choose an existing folder, or enter a new vault-relative path.'),templateHint=t('Start typing to choose an existing Markdown note, or click Choose template… to search this vault.'),timeZoneHint=t('Start typing to choose from the list, or enter an IANA name directly.');
     // Shared by every folder/template/timezone/interval field, regardless of
     // which tier's container it ends up rendered in (root, the gated daily
     // section, or the collapsed advanced section).
     function addField(container,key,label,help){
-      const setting=new Setting(container).setName(label).setDesc(folderKeys.has(key)?`${help} ${folderHint}`:(key==='dailyTemplate'?`${help} ${templateHint}`:help));
+      const setting=new Setting(container).setName(label).setDesc(folderKeys.has(key)?`${help} ${folderHint}`:(key==='dailyTemplate'?`${help} ${templateHint}`:(key==='timeZone'&&timeZones.length?`${help} ${timeZoneHint}`:help)));
       let field;
       setting.addText(input=>{
         field=input;
         input.setValue(String(draft[key]));
         if(folderKeys.has(key))addSuggestions(c,input,`codex-daybook-folder-${key}`,folders);
         if(key==='dailyTemplate')addSuggestions(c,input,'codex-daybook-template-dailyTemplate',templates);
+        if(key==='timeZone')addSuggestions(c,input,'codex-daybook-timezone',timeZones);
         input.onChange(v=>{draft[key]=key==='intervalSeconds'?Number(v):v;});
       });
       if(key==='dailyTemplate')setting.addButton(button=>button.setButtonText(t('Choose template…')).setDisabled(!templates.length).onClick(()=>new TemplatePicker(p.app,templates,path=>{draft.dailyTemplate=path;field.setValue(path);},t).open()));
@@ -68,6 +72,32 @@ class SyncSettings extends PluginSettingTab {
       .addDropdown(d=>d.addOption('zh','简体中文').addOption('en','English').setValue(draft.language).onChange(value=>{draft.language=value;}));
     addField(c,'noteFolder',t('Notes folder'),t('Vault-relative folder for synced conversation notes.'));
     addField(c,'attachmentFolder',t('Attachments folder'),t('Vault-relative folder for copied images.'));
+    let executableField;
+    new Setting(c).setName(t('Codex executable')).setDesc(t('Leave blank to auto-detect a standard install or PATH entry, or enter a full path. On Windows, pick the real codex.exe — not a .cmd shim or WSL.'))
+      .addText(input=>{executableField=input;input.setValue(draft.executable).onChange(v=>{draft.executable=v;});})
+      .addButton(b=>b.setButtonText(t('Scan')).onClick(()=>{
+        // Synchronous, local-only filesystem/PATH lookup — same check the
+        // plugin already runs on connect/login, just surfaced on demand so a
+        // user isn't stuck guessing whether leaving the field blank will work.
+        try{
+          const found=p.detectExecutable();
+          draft.executable=found;executableField.setValue(found);
+          message.setText(t('Found Codex at {path}.',{path:found}));
+        }catch(error){
+          message.setText(error.message?t(error.message):t('Could not find Codex automatically. Try Browse, or enter the full path.'));
+        }
+      }))
+      .addButton(b=>b.setButtonText(t('Browse…')).onClick(()=>{
+        const input=c.createEl('input',{type:'file',cls:'codex-daybook-file-picker'});
+        input.oncancel=()=>input.remove();
+        input.onchange=()=>{
+          const file=input.files?.[0];
+          const path=file&&(file.path||require('electron').webUtils?.getPathForFile(file));
+          input.remove();
+          if(path){draft.executable=path;executableField.setValue(path);}
+        };
+        input.click();
+      }));
     new Setting(c).setName(t('Allow access outside the vault')).setDesc(t('The plugin launches the local Codex app-server, reuses your existing ChatGPT login, and reads task data plus any local images explicitly attached to messages. The connection check reads a small sample from one existing task to verify the interface, without importing it. The plugin sends no uploads or telemetry; Codex itself may still use its own account services.')).addToggle(t=>t.setValue(draft.consent).onChange(v=>{draft.consent=v;}));
 
     const bindButton=(b,label,fn)=>b.setButtonText(label).onClick(async()=>{const language=p.state.settings.language;b.setDisabled(true);try{await fn();message.setText(p.diagnostic||t('Settings saved'));}catch(error){message.setText(error.safeMessage?t(error.safeMessage):t('Action failed — check your settings, Codex login and version. Local copies are kept.'));}finally{b.setDisabled(false);if(p.state.settings.language!==language){p.diagnostic=message.textContent;this.update();}}});
@@ -103,33 +133,7 @@ class SyncSettings extends PluginSettingTab {
 
     // Tier 3 — rarely touched, collapsed by default.
     const advanced=c.createEl('details',{cls:'codex-daybook-advanced'});
-    advanced.createEl('summary',{text:t('Advanced: Codex executable, time zone, check interval')});
-    let executableField;
-    new Setting(advanced).setName(t('Codex executable')).setDesc(t('Leave blank to auto-detect a standard install or PATH entry, or enter a full path. On Windows, pick the real codex.exe — not a .cmd shim or WSL.'))
-      .addText(t=>{executableField=t;t.setValue(draft.executable).onChange(v=>{draft.executable=v;});})
-      .addButton(b=>b.setButtonText(t('Scan')).onClick(()=>{
-        // Synchronous, local-only filesystem/PATH lookup — same check the
-        // plugin already runs on connect/login, just surfaced on demand so a
-        // user isn't stuck guessing whether leaving the field blank will work.
-        try{
-          const found=p.detectExecutable();
-          draft.executable=found;executableField.setValue(found);
-          message.setText(t('Found Codex at {path}.',{path:found}));
-        }catch(error){
-          message.setText(error.message?t(error.message):t('Could not find Codex automatically. Try Browse, or enter the full path.'));
-        }
-      }))
-      .addButton(b=>b.setButtonText(t('Browse…')).onClick(()=>{
-        const input=advanced.createEl('input',{type:'file',cls:'codex-daybook-file-picker'});
-        input.oncancel=()=>input.remove();
-        input.onchange=()=>{
-          const file=input.files?.[0];
-          const path=file&&(file.path||require('electron').webUtils?.getPathForFile(file));
-          input.remove();
-          if(path){draft.executable=path;executableField.setValue(path);}
-        };
-        input.click();
-      }));
+    advanced.createEl('summary',{text:t('Advanced: time zone, check interval')});
     addField(advanced,'timeZone',t('Time zone'),t('IANA name, e.g. Asia/Tokyo, Europe/London.'));
     addField(advanced,'intervalSeconds',t('Check interval (seconds)'),t('5–3600 seconds; default is 10.'));
   }
@@ -215,7 +219,7 @@ module.exports=class CodexDailySync extends Plugin {
       this.loginSession=session;await session.start();
     }catch(error){
       this.loginSession?.dispose();this.loginSession=null;this.client?.stop();this.client=null;
-      this.setLoginMessage('Could not start login. Check your local Codex installation or the executable under Advanced.');
+      this.setLoginMessage('Could not start login. Check your local Codex installation or the executable path above.');
       this.diagnostic=this.t(this.loginMessage);this.status.setText(this.t('Codex sync: paused'));
       throw {safeMessage:error.safeMessage?this.t(error.safeMessage):this.diagnostic};
     }

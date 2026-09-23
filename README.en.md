@@ -12,11 +12,11 @@ Requires Obsidian 1.13.7+ and a local Codex Desktop installation. Dataview is on
 
 1. Extract the installation ZIP into your vault's `.obsidian/plugins/`, keeping the `codex-daily-sync` folder.
 2. Enable this plugin in Obsidian's community plugins settings (also enable Dataview if you plan to use daily track).
-3. First activation only shows the minimum settings: notes folder and attachments folder. Daily track is off by default; turning it on is a single toggle and reveals the daily folder and template (both already have working defaults). Time zone and check interval live under Advanced settings.
+3. First activation only shows the minimum settings: notes folder, attachments folder, and the Codex executable (auto-detected by default, with a one-click Scan). Daily track is off by default; turning it on is a single toggle and reveals the daily folder and template (both already have working defaults). Time zone and check interval live under Advanced settings.
 4. Acknowledge outside-vault access, click **Log in to Codex** to sign in with ChatGPT, then **Check connection** to verify the interface. If no verifiable main task exists yet, finish a test task in Codex first.
 5. Once the check passes, click **Start sync**. This fixes the sync starting point — only Codex main tasks created afterward are captured.
 
-The Codex executable is auto-detected by default; if detection fails, select it manually under Advanced settings — only choose an executable you trust, since it runs with your account's permissions. The interface supports Simplified Chinese and English, switchable from Language in settings; this only changes the interface text, never synced note content.
+If auto-detection of the Codex executable fails, select it manually — only choose an executable you trust, since it runs with your account's permissions. The interface supports Simplified Chinese and English, switchable from Language in settings; this only changes the interface text, never synced note content.
 
 ## What gets synced
 

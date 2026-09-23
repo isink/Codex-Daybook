@@ -132,7 +132,7 @@ test('a fresh install starts with daily track off and its section hidden; enabli
   // The fields underneath already carry the working built-in defaults —
   // enabling needs no further typing.
   const fields=textComponents(c);
-  assert.equal(fields[2].value,'Daily');assert.equal(fields[3].value,'');
+  assert.equal(fields[3].value,'Daily');assert.equal(fields[4].value,'');
   let captured;plugin.configure=async d=>{captured=d;};
   await findButton(c,'Save settings').press();
   assert.equal(captured.dailyTrackEnabled,true);
@@ -168,7 +168,7 @@ test('text fields initialize from settings and flow into the draft; interval coe
   const {plugin,tab}=await buildTab();
   tab.display();
   const c=tab.containerEl;
-  const fields=textComponents(c); // noteFolder, attachmentFolder, dailyFolder, dailyTemplate, executable, timeZone, intervalSeconds
+  const fields=textComponents(c); // noteFolder, attachmentFolder, executable, dailyFolder, dailyTemplate, timeZone, intervalSeconds
   assert.equal(fields.length,7);
   assert.equal(fields[0].value,'Codex Conversations');
   assert.equal(fields[6].value,'10');
@@ -183,7 +183,9 @@ test('text fields initialize from settings and flow into the draft; interval coe
 test('folder fields suggest existing vault folders and still accept a new path',async()=>{
   const {tab}=await buildTab({}, {folders:[{path:'90_Templates'},{path:'00_Inbox'},{path:'90_Templates/Daily'},{path:''},{path:'00_Inbox'}]});
   tab.display();
-  const lists=tab.containerEl.children.filter(el=>el.tag==='datalist');
+  // A time-zone datalist is always present alongside these, so filter to the
+  // folder-specific ones this test cares about.
+  const lists=tab.containerEl.children.filter(el=>el.tag==='datalist'&&el.attrs.id?.startsWith('codex-daybook-folder-'));
   assert.equal(lists.length,3);
   assert.deepEqual(lists.map(list=>list.children.map(option=>option.attrs.value)),[
     ['00_Inbox','90_Templates','90_Templates/Daily'],
@@ -193,8 +195,8 @@ test('folder fields suggest existing vault folders and still accept a new path',
   const fields=textComponents(tab.containerEl);
   assert.equal(fields[0].inputEl.attrs.list,'codex-daybook-folder-noteFolder');
   assert.equal(fields[1].inputEl.attrs.list,'codex-daybook-folder-attachmentFolder');
-  assert.equal(fields[2].inputEl.attrs.list,'codex-daybook-folder-dailyFolder');
-  assert.equal(fields[3].inputEl.attrs.list,undefined);
+  assert.equal(fields[3].inputEl.attrs.list,'codex-daybook-folder-dailyFolder');
+  assert.equal(fields[4].inputEl.attrs.list,undefined);
   await fields[0].type('New Folder');
   assert.equal(fields[0].value,'New Folder');
 });
@@ -204,8 +206,22 @@ test('daily template suggests Markdown files and exposes a template chooser',asy
   tab.display();
   const list=tab.containerEl.children.find(el=>el.attrs.id==='codex-daybook-template-dailyTemplate');
   assert.deepEqual(list.children.map(option=>option.attrs.value),['90_Templates/Daily.md','90_Templates/Meeting.md']);
-  assert.equal(textComponents(tab.containerEl)[3].inputEl.attrs.list,'codex-daybook-template-dailyTemplate');
+  assert.equal(textComponents(tab.containerEl)[4].inputEl.attrs.list,'codex-daybook-template-dailyTemplate');
   assert.equal(findButton(tab.containerEl,'Choose template…').disabled,false);
+});
+
+test('time zone field offers the full IANA list as suggestions and still accepts typed input',async()=>{
+  const {tab}=await buildTab();
+  tab.display();
+  const c=tab.containerEl;
+  const list=c.children.find(el=>el.attrs.id==='codex-daybook-timezone');
+  assert.ok(list);
+  const values=list.children.map(option=>option.attrs.value);
+  assert.ok(values.includes('Asia/Shanghai'));assert.ok(values.includes('Europe/London'));
+  const fields=textComponents(c);
+  assert.equal(fields[5].inputEl.attrs.list,'codex-daybook-timezone');
+  await fields[5].type('Asia/Tokyo');
+  assert.equal(fields[5].value,'Asia/Tokyo');
 });
 
 test('consent toggle initializes from settings and flows into the draft',async()=>{
@@ -232,7 +248,7 @@ test('executable file picker: a selected file updates the draft and the executab
   input.files=[{path:'/opt/homebrew/bin/codex'}];
   input.onchange();
   assert.equal(input.removed,true);
-  assert.equal(textComponents(c)[4].value,'/opt/homebrew/bin/codex');
+  assert.equal(textComponents(c)[2].value,'/opt/homebrew/bin/codex');
   let captured;plugin.configure=async d=>{captured=d;};
   await findButton(c,'Save settings').press();
   assert.equal(captured.executable,'/opt/homebrew/bin/codex');
@@ -250,7 +266,7 @@ test('executable file picker falls back to electron.webUtils.getPathForFile when
     Module._load=function(id,...args){if(id==='electron')return {webUtils:{getPathForFile:()=>'/resolved/from/webUtils'}};return original.call(this,id,...args);};
     input.onchange();
   }finally{Module._load=original;}
-  assert.equal(textComponents(c)[4].value,'/resolved/from/webUtils');
+  assert.equal(textComponents(c)[2].value,'/resolved/from/webUtils');
 });
 
 test('Scan fills in the executable field and reports the path on success',async()=>{
@@ -259,7 +275,7 @@ test('Scan fills in the executable field and reports the path on success',async(
   const c=tab.containerEl,message=statusMessage(c);
   plugin.detectExecutable=()=>'/opt/homebrew/bin/codex';
   await findButton(c,'Scan').press();
-  assert.equal(textComponents(c)[4].value,'/opt/homebrew/bin/codex');
+  assert.equal(textComponents(c)[2].value,'/opt/homebrew/bin/codex');
   assert.equal(message.text,'Found Codex at /opt/homebrew/bin/codex.');
   let captured;plugin.configure=async d=>{captured=d;};
   await findButton(c,'Save settings').press();
@@ -270,10 +286,10 @@ test('Scan reports a translated, actionable message when auto-detection fails, a
   const {plugin,tab}=await buildTab();
   tab.display();
   const c=tab.containerEl,message=statusMessage(c);
-  await textComponents(c)[4].type('/keep/this/path');
+  await textComponents(c)[2].type('/keep/this/path');
   plugin.detectExecutable=()=>{throw Error('Codex executable not found — choose it in settings. Nothing is installed or added to PATH automatically.');};
   await findButton(c,'Scan').press();
-  assert.equal(textComponents(c)[4].value,'/keep/this/path');
+  assert.equal(textComponents(c)[2].value,'/keep/this/path');
   assert.equal(message.text,'Codex executable not found — choose it in settings. Nothing is installed or added to PATH automatically.');
 });
 
@@ -409,11 +425,12 @@ test('language save failure keeps the saved language and sync mappings unchanged
   assert.ok(c.settings.some(s=>s.name==='Language'));
 });
 
-test('login controls are visible and the executable picker is inside collapsed advanced settings',async()=>{
+test('login controls are visible; the executable field sits with the top-tier settings while time zone and check interval stay inside collapsed advanced settings',async()=>{
   const {tab}=await buildTab();tab.display();const c=tab.containerEl;
   assert.ok(findButton(c,'Log in to Codex'));assert.ok(findButton(c,'Cancel login'));
+  assert.ok(c.settings.some(s=>s.name==='Codex executable'));
   const details=c.children.find(x=>x.tag==='details');assert.ok(details);assert.equal(details.attrs.open,undefined);
-  assert.ok(details.settings.some(s=>s.name==='Codex executable'));
+  assert.ok(!details.settings.some(s=>s.name==='Codex executable'));
   assert.ok(details.settings.some(s=>s.name==='Time zone'));
   assert.ok(details.settings.some(s=>s.name==='Check interval (seconds)'));
 });
