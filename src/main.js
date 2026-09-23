@@ -59,6 +59,18 @@ class SyncSettings extends PluginSettingTab {
     let executableField;
     new Setting(advanced).setName(t('Codex executable')).setDesc(t('Leave blank to auto-detect a standard install or PATH entry, or enter a full path. On Windows, pick the real codex.exe — not a .cmd shim or WSL.'))
       .addText(t=>{executableField=t;t.setValue(draft.executable).onChange(v=>{draft.executable=v;});})
+      .addButton(b=>b.setButtonText(t('Scan')).onClick(()=>{
+        // Synchronous, local-only filesystem/PATH lookup — same check the
+        // plugin already runs on connect/login, just surfaced on demand so a
+        // user isn't stuck guessing whether leaving the field blank will work.
+        try{
+          const found=p.detectExecutable();
+          draft.executable=found;executableField.setValue(found);
+          message.setText(t('Found Codex at {path}.',{path:found}));
+        }catch(error){
+          message.setText(error.message?t(error.message):t('Could not find Codex automatically. Try Browse, or enter the full path.'));
+        }
+      }))
       .addButton(b=>b.setButtonText(t('Browse…')).onClick(()=>{
         const input=advanced.createEl('input',{type:'file',cls:'codex-daybook-file-picker'});
         input.oncancel=()=>input.remove();
@@ -151,6 +163,10 @@ module.exports=class CodexDailySync extends Plugin {
   async control(fn){if(this.controlBusy)throw {safeMessage:this.t('An operation is already in progress — please wait.')};this.controlBusy=true;try{return await fn();}finally{this.controlBusy=false;}}
   async configure(draft){return this.control(async()=>{let settings;try{settings=validateSettings(draft);}catch(e){throw {safeMessage:this.t(e.message)};}await this.stopRuntime();await this.save({...this.state,settings,enabled:false});this.refreshCommandNames();this.status.setText(this.t('Codex sync: paused'));});}
   createClient(executable){return new CodexClient(executable);}
+  // Ignores any saved/typed path and always re-runs auto-detection, for the
+  // settings panel's on-demand Scan button — a separate concern from
+  // connectInternal()/login(), which respect whatever is already configured.
+  detectExecutable(){return codexExecutable('');}
   openLoginUrl(url){return require('electron').shell.openExternal(url);}
   setLoginMessage(key){this.loginMessage=key;this.authMessageEl?.setText(this.t(key));}
   async login(){return this.control(async()=>{

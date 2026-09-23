@@ -216,6 +216,30 @@ test('executable file picker falls back to electron.webUtils.getPathForFile when
   assert.equal(c.querySelectorAll('input[type=text]')[0].value,'/resolved/from/webUtils');
 });
 
+test('Scan fills in the executable field and reports the path on success',async()=>{
+  const {plugin,tab}=await buildTab();
+  tab.display();
+  const c=tab.containerEl,message=statusMessage(c);
+  plugin.detectExecutable=()=>'/opt/homebrew/bin/codex';
+  await findButton(c,'Scan').press();
+  assert.equal(c.querySelectorAll('input[type=text]')[0].value,'/opt/homebrew/bin/codex');
+  assert.equal(message.text,'Found Codex at /opt/homebrew/bin/codex.');
+  let captured;plugin.configure=async d=>{captured=d;};
+  await findButton(c,'Save settings').press();
+  assert.equal(captured.executable,'/opt/homebrew/bin/codex');
+});
+
+test('Scan reports a translated, actionable message when auto-detection fails, and never overwrites the field',async()=>{
+  const {plugin,tab}=await buildTab();
+  tab.display();
+  const c=tab.containerEl,message=statusMessage(c);
+  await textComponents(c)[0].type('/keep/this/path');
+  plugin.detectExecutable=()=>{throw Error('Codex executable not found — choose it in settings. Nothing is installed or added to PATH automatically.');};
+  await findButton(c,'Scan').press();
+  assert.equal(c.querySelectorAll('input[type=text]')[0].value,'/keep/this/path');
+  assert.equal(message.text,'Codex executable not found — choose it in settings. Nothing is installed or added to PATH automatically.');
+});
+
 test('cancelling the file picker removes the hidden input',async()=>{
   const {tab}=await buildTab();tab.display();const c=tab.containerEl;
   await findButton(c,'Browse…').press();
