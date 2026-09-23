@@ -1,7 +1,7 @@
 const {parseNote,noteThreadId,dateParts}=require('./core');
 const {migrateState}=require('./tasks');
 const QUERY='```dataview\nLIST WITHOUT ID captured_at + "　→　" + file.link\nWHERE contains(file.outlinks, this.file.link)\nSORT captured_at ASC\n```';
-const DEFAULT_TEMPLATE='---\ntype: daily\ndate: "{{date:YYYY-MM-DD}}"\n---\n\n'+QUERY+'\n';
+const DEFAULT_TEMPLATE='---\ntype: 每日记录\ndate: "{{date:YYYY-MM-DD}}"\n---\n\n'+QUERY+'\n';
 function defaults(language='en'){return {language,executable:'',noteFolder:'Codex Conversations',attachmentFolder:'Attachments/Codex',dailyFolder:'Daily',dailyTemplate:'',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC',intervalSeconds:10,consent:false,dailyTrackEnabled:false};}
 function vaultPath(value,optional=false){
   if(typeof value!=='string')throw Error('Folders must be vault-relative paths.');
