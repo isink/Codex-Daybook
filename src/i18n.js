@@ -2,7 +2,7 @@
 const zh={
   "In a custom template, {{date:YYYY-MM-DD}} becomes the date (for example, 2026-09-20). Other placeholders and Templater scripts are not supported.": "自定义模板里，{{date:YYYY-MM-DD}} 会替换成日期（例如 2026-09-20）；暂不支持其他占位符或 Templater 脚本。",
   "Language": "语言",
-  "Save settings to apply the selected language.": "保存设置后应用所选语言。",
+  "Updates this settings panel immediately. Save settings to also apply it to notices and command names.": "立即更新本设置面板的语言；保存设置后才会应用到通知与命令名称。",
   "Choose a Codex conversation note": "选择 Codex 对话笔记",
   "Codex conversation": "Codex 对话",
   "Codex executable": "Codex 程序路径",

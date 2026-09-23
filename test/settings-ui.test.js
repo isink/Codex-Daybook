@@ -417,25 +417,43 @@ test('Copy query confirms success rather than displaying stale sync status',asyn
   assert.equal(message.text,'Query copied to clipboard.');
 });
 
-test('Chinese selection saves with the draft, refreshes the UI and commands, and persists across reload',async()=>{
+test('selecting a language updates the settings panel immediately (no unsaved edit lost); saving then also updates notices and command names, and persists across reload',async()=>{
   const {plugin,tab}=await buildTab();tab.display();const c=tab.containerEl;
   const dropdown=allSettings(c).flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent);
   assert.deepEqual(dropdown.options,{zh:'简体中文',en:'English'});
-  await textComponents(c)[0].type('Custom Notes');await dropdown.select('zh');
-  assert.equal(plugin.state.settings.language,'en','selection alone is not saved');
-  let stored;plugin.saveData=async state=>{stored=JSON.parse(JSON.stringify(state));};
-  await findButton(c,'Save settings').press();
-  assert.equal(stored.settings.language,'zh');assert.equal(stored.settings.noteFolder,'Custom Notes');
+  await textComponents(c)[0].type('Custom Notes');
+  await dropdown.select('zh');
+  // The panel itself switches language right away, before Save is clicked —
+  // and the unsaved noteFolder edit survives that re-render.
   assert.ok(allSettings(c).some(s=>s.name==='语言'));
+  assert.equal(textComponents(c)[0].value,'Custom Notes');
+  assert.equal(plugin.state.settings.language,'en','selection alone does not persist yet');
+  let stored;plugin.saveData=async state=>{stored=JSON.parse(JSON.stringify(state));};
+  await findButton(c,'保存设置').press();
+  assert.equal(stored.settings.language,'zh');assert.equal(stored.settings.noteFolder,'Custom Notes');
   assert.ok(c.children.some(el=>el.text==='设置已保存，同步已暂停。请先检查连接，再开始同步。'));
   assert.equal(plugin.localizedCommands[0][0].name,'Codex Daybook: 立即同步已加入的任务');
   const reloaded=await buildTab(stored);reloaded.tab.display();
   assert.ok(allSettings(reloaded.tab.containerEl).some(s=>s.name==='语言'));
   const picker=allSettings(reloaded.tab.containerEl).flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent);
-  await picker.select('en');await findButton(reloaded.tab.containerEl,'保存设置').press();
+  await picker.select('en');
   assert.ok(allSettings(reloaded.tab.containerEl).some(s=>s.name==='Language'));
+  await findButton(reloaded.tab.containerEl,'Save settings').press();
   assert.equal(reloaded.plugin.localizedCommands[0][0].name,'Codex Daybook: Sync enrolled tasks now');
   assert.equal(reloaded.plugin.state.settings.noteFolder,'Custom Notes');
+});
+
+test('switching language while on the Daily track tab keeps that tab open across the re-render',async()=>{
+  const {tab}=await buildTab();
+  tab.display();
+  const c=tab.containerEl;
+  tabButtons(c)[1].onclick(); // switch to Daily track before touching language
+  const dropdown=allSettings(c).flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent);
+  await dropdown.select('zh');
+  const basicPanel=c.children.find(el=>el.cls==='codex-daybook-panel-basic');
+  const dailyPanel=c.children.find(el=>el.cls==='codex-daybook-panel-daily');
+  assert.equal(basicPanel.hidden,true);assert.equal(dailyPanel.hidden,false);
+  assert.ok(tabButtons(c)[1].cls.includes('is-active'));
 });
 
 test('Chinese setting validation and connection gate show translated errors',async()=>{
@@ -446,13 +464,13 @@ test('Chinese setting validation and connection gate show translated errors',asy
   await assert.rejects(()=>plugin.connect(),e=>e.safeMessage==='请先确认库外访问权限并保存设置。');
 });
 
-test('language save failure keeps the saved language and sync mappings unchanged',async()=>{
+test('a failed save leaves the persisted language unchanged, though the panel keeps showing the selected language',async()=>{
   const {plugin,tab}=await buildTab();tab.display();const c=tab.containerEl;
   const before=JSON.stringify(plugin.state);
   await allSettings(c).flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent).select('zh');
   plugin.saveData=async()=>{throw Error('disk full');};
-  await findButton(c,'Save settings').press();assert.equal(JSON.stringify(plugin.state),before);
-  assert.ok(allSettings(c).some(s=>s.name==='Language'));
+  await findButton(c,'保存设置').press();assert.equal(JSON.stringify(plugin.state),before);
+  assert.ok(allSettings(c).some(s=>s.name==='语言'));
 });
 
 test('login controls, the executable field, and time zone/check interval all live in the Basic settings tab — no collapsed Advanced section',async()=>{
