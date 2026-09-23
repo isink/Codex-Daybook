@@ -50,8 +50,7 @@ class SyncSettings extends PluginSettingTab {
     const folderKeys=new Set(['noteFolder','attachmentFolder','dailyFolder']);
     const folders=existingVaultFolders(p.app.vault),templates=existingVaultMarkdownFiles(p.app.vault),timeZones=availableTimeZones(),folderHint=t('Start typing to choose an existing folder, or enter a new vault-relative path.'),templateHint=t('Start typing to choose an existing Markdown note, or click Choose template… to search this vault.'),timeZoneHint=t('Start typing to choose from the list, or enter an IANA name directly.');
     // Shared by every folder/template/timezone/interval field, regardless of
-    // which tier's container it ends up rendered in (root, the gated daily
-    // section, or the collapsed advanced section).
+    // which tab's panel it ends up rendered in.
     function addField(container,key,label,help){
       const setting=new Setting(container).setName(label).setDesc(folderKeys.has(key)?`${help} ${folderHint}`:(key==='dailyTemplate'?`${help} ${templateHint}`:(key==='timeZone'&&timeZones.length?`${help} ${timeZoneHint}`:help)));
       let field;
@@ -67,13 +66,34 @@ class SyncSettings extends PluginSettingTab {
       return field;
     }
 
-    // Tier 1 — minimum to collect conversations at all.
-    new Setting(c).setName(t('Language')).setDesc(t('Save settings to apply the selected language.'))
+    // Two tabs — Basic settings (everything needed to just collect
+    // conversations) and Daily track (the optional time-trail feature) —
+    // replacing the earlier collapsed Advanced section entirely. A shared
+    // status message sits below the tab bar so it's visible no matter which
+    // tab is open.
+    const tabs=c.createEl('div',{cls:'codex-daybook-tabs'});
+    const basicTabButton=tabs.createEl('button',{cls:'codex-daybook-tab',text:t('Basic settings')});
+    const dailyTabButton=tabs.createEl('button',{cls:'codex-daybook-tab',text:t('Daily track')});
+    const message=c.createEl('p',{cls:'codex-daybook-note',text:p.diagnostic||(p.state.enabled?t('Syncing'):t('Paused — awaiting setup'))});
+    p.authMessageEl=message;
+    const basicPanel=c.createEl('div',{cls:'codex-daybook-panel-basic'});
+    const dailyPanel=c.createEl('div',{cls:'codex-daybook-panel-daily'});
+    function selectTab(name){
+      const basic=name==='basic';
+      basicPanel.hidden=!basic;dailyPanel.hidden=basic;
+      basicTabButton.toggleClass('is-active',basic);dailyTabButton.toggleClass('is-active',!basic);
+    }
+    basicTabButton.onclick=()=>selectTab('basic');
+    dailyTabButton.onclick=()=>selectTab('daily');
+    selectTab('basic');
+
+    // Basic settings tab — everything needed to just collect conversations.
+    new Setting(basicPanel).setName(t('Language')).setDesc(t('Save settings to apply the selected language.'))
       .addDropdown(d=>d.addOption('zh','简体中文').addOption('en','English').setValue(draft.language).onChange(value=>{draft.language=value;}));
-    addField(c,'noteFolder',t('Notes folder'),t('Vault-relative folder for synced conversation notes.'));
-    addField(c,'attachmentFolder',t('Attachments folder'),t('Vault-relative folder for copied images.'));
+    addField(basicPanel,'noteFolder',t('Notes folder'),t('Vault-relative folder for synced conversation notes.'));
+    addField(basicPanel,'attachmentFolder',t('Attachments folder'),t('Vault-relative folder for copied images.'));
     let executableField;
-    new Setting(c).setName(t('Codex executable')).setDesc(t('Leave blank to auto-detect a standard install or PATH entry, or enter a full path. On Windows, pick the real codex.exe — not a .cmd shim or WSL.'))
+    new Setting(basicPanel).setName(t('Codex executable')).setDesc(t('Leave blank to auto-detect a standard install or PATH entry, or enter a full path. On Windows, pick the real codex.exe — not a .cmd shim or WSL.'))
       .addText(input=>{executableField=input;input.setValue(draft.executable).onChange(v=>{draft.executable=v;});})
       .addButton(b=>b.setButtonText(t('Scan')).onClick(()=>{
         // Synchronous, local-only filesystem/PATH lookup — same check the
@@ -98,44 +118,38 @@ class SyncSettings extends PluginSettingTab {
         };
         input.click();
       }));
-    new Setting(c).setName(t('Allow access outside the vault')).setDesc(t('The plugin launches the local Codex app-server, reuses your existing ChatGPT login, and reads task data plus any local images explicitly attached to messages. The connection check reads a small sample from one existing task to verify the interface, without importing it. The plugin sends no uploads or telemetry; Codex itself may still use its own account services.')).addToggle(t=>t.setValue(draft.consent).onChange(v=>{draft.consent=v;}));
+    addField(basicPanel,'timeZone',t('Time zone'),t('IANA name, e.g. Asia/Tokyo, Europe/London.'));
+    addField(basicPanel,'intervalSeconds',t('Check interval (seconds)'),t('5–3600 seconds; default is 10.'));
+    new Setting(basicPanel).setName(t('Allow access outside the vault')).setDesc(t('The plugin launches the local Codex app-server, reuses your existing ChatGPT login, and reads task data plus any local images explicitly attached to messages. The connection check reads a small sample from one existing task to verify the interface, without importing it. The plugin sends no uploads or telemetry; Codex itself may still use its own account services.')).addToggle(t=>t.setValue(draft.consent).onChange(v=>{draft.consent=v;}));
 
     const bindButton=(b,label,fn)=>b.setButtonText(label).onClick(async()=>{const language=p.state.settings.language;b.setDisabled(true);try{await fn();message.setText(p.diagnostic||t('Settings saved'));}catch(error){message.setText(error.safeMessage?t(error.safeMessage):t('Action failed — check your settings, Codex login and version. Local copies are kept.'));}finally{b.setDisabled(false);if(p.state.settings.language!==language){p.diagnostic=message.textContent;this.update();}}});
-    new Setting(c).setName(t('Codex account')).setDesc(t('Automatically finds local Codex. Reuses your ChatGPT login when available, or opens the official login page. Codex must be installed on this computer.'))
+    new Setting(basicPanel).setName(t('Codex account')).setDesc(t('Automatically finds local Codex. Reuses your ChatGPT login when available, or opens the official login page. Codex must be installed on this computer.'))
       .addButton(b=>bindButton(b,t('Log in to Codex'),async()=>{if(p.loginSession?.active)throw {safeMessage:t('A login is already in progress. Finish it in your browser or cancel it here.')};await p.configure(draft);await p.login();}))
       .addButton(b=>bindButton(b,t('Cancel login'),()=>p.cancelLogin()));
-    const message=c.createEl('p',{cls:'codex-daybook-note',text:p.diagnostic||(p.state.enabled?t('Syncing'):t('Paused — awaiting setup'))});
-    p.authMessageEl=message;
 
-    new Setting(c)
+    new Setting(basicPanel)
       .addButton(b=>bindButton(b,t('Save settings'),async()=>{await p.configure(draft);p.diagnostic=t('Settings saved. Sync is paused — check the connection to start.');}))
       .addButton(b=>bindButton(b,t('Check connection'),async()=>{await p.configure(draft);await p.connect();}));
-    new Setting(c)
+    new Setting(basicPanel)
       .addButton(b=>bindButton(b,t('Start sync'),async()=>{if(JSON.stringify(validateSettings(draft))!==JSON.stringify(p.state.settings))throw {safeMessage:t('Settings not saved yet — check the connection first.')};await p.begin();}))
       .addButton(b=>bindButton(b,t('Pause sync'),()=>p.pause()));
 
-    // Tier 2 — daily track, off by default, gated behind its own toggle. The
-    // section is always built (draft.dailyFolder/dailyTemplate keep flowing
-    // through their normal onChange handlers either way) — only `.hidden`
-    // changes on toggle, never a full re-`display()`, so no other unsaved
-    // draft edit is ever discarded by flipping this switch.
-    const dailySection=c.createEl('div',{cls:'codex-daybook-daily-section'});
-    new Setting(c).setName(t('Enable daily track')).setDesc(t('Add a daily: link to each synced conversation, and automatically create that day\'s note if it does not exist yet. The daily notes location and template already have working defaults, so turning this on needs no further setup.'))
-      .addToggle(toggle=>toggle.setValue(draft.dailyTrackEnabled).onChange(v=>{draft.dailyTrackEnabled=v;dailySection.hidden=!v;}));
-    dailySection.hidden=!draft.dailyTrackEnabled;
-    addField(dailySection,'dailyFolder',t('Daily notes location'),t('Daily notes help you find Codex conversations by the date each task was created. Enter a folder inside this vault, such as Daily; a note will be saved as Daily/2026-09-20.md. Existing daily notes are never overwritten.'));
-    addField(dailySection,'dailyTemplate',t('Use your own daily template (optional)'),t('Unsure? Leave this blank. The built-in layout includes a conversation list, displayed by the Dataview plugin. To use your own layout, enter the path to an existing note in this vault, such as Templates/Daily.md. It is used only when creating a daily note.'));
-    new Setting(dailySection).setName(t('Conversation list for daily notes')).setHeading();
-    dailySection.createEl('p',{cls:'codex-daybook-note',text:t('Using your own template or an existing daily note? Paste the code below into it to show links to conversations created that day. Install and enable Dataview to display the list. The built-in template already includes this code.')});
-    dailySection.createEl('p',{cls:'codex-daybook-note',text:t('In a custom template, {{date:YYYY-MM-DD}} becomes the date (for example, 2026-09-20). Other placeholders and Templater scripts are not supported.')});
-    dailySection.createEl('textarea',{cls:'codex-daybook-query',text:QUERY,attr:{readonly:'true',rows:'6','aria-label':t('Dataview query example')}});
-    new Setting(dailySection).addButton(b=>bindButton(b,t('Copy query'),async()=>{await navigator.clipboard.writeText(QUERY);p.diagnostic=t('Query copied to clipboard.');}));
-
-    // Tier 3 — rarely touched, collapsed by default.
-    const advanced=c.createEl('details',{cls:'codex-daybook-advanced'});
-    advanced.createEl('summary',{text:t('Advanced: time zone, check interval')});
-    addField(advanced,'timeZone',t('Time zone'),t('IANA name, e.g. Asia/Tokyo, Europe/London.'));
-    addField(advanced,'intervalSeconds',t('Check interval (seconds)'),t('5–3600 seconds; default is 10.'));
+    // Daily track tab — off by default, gated behind its own toggle. The
+    // fields below it are always built (draft.dailyFolder/dailyTemplate keep
+    // flowing through their normal onChange handlers either way) — only
+    // `.hidden` changes on toggle, never a full re-`display()`, so no other
+    // unsaved draft edit is ever discarded by flipping this switch.
+    const dailyFields=dailyPanel.createEl('div',{cls:'codex-daybook-daily-fields'});
+    new Setting(dailyPanel).setName(t('Enable daily track')).setDesc(t('Add a daily: link to each synced conversation, and automatically create that day\'s note if it does not exist yet. The daily notes location and template already have working defaults, so turning this on needs no further setup.'))
+      .addToggle(toggle=>toggle.setValue(draft.dailyTrackEnabled).onChange(v=>{draft.dailyTrackEnabled=v;dailyFields.hidden=!v;}));
+    dailyFields.hidden=!draft.dailyTrackEnabled;
+    addField(dailyFields,'dailyFolder',t('Daily notes location'),t('Daily notes help you find Codex conversations by the date each task was created. Enter a folder inside this vault, such as Daily; a note will be saved as Daily/2026-09-20.md. Existing daily notes are never overwritten.'));
+    addField(dailyFields,'dailyTemplate',t('Use your own daily template (optional)'),t('Unsure? Leave this blank. The built-in layout includes a conversation list, displayed by the Dataview plugin. To use your own layout, enter the path to an existing note in this vault, such as Templates/Daily.md. It is used only when creating a daily note.'));
+    new Setting(dailyFields).setName(t('Conversation list for daily notes')).setHeading();
+    dailyFields.createEl('p',{cls:'codex-daybook-note',text:t('Using your own template or an existing daily note? Paste the code below into it to show links to conversations created that day. Install and enable Dataview to display the list. The built-in template already includes this code.')});
+    dailyFields.createEl('p',{cls:'codex-daybook-note',text:t('In a custom template, {{date:YYYY-MM-DD}} becomes the date (for example, 2026-09-20). Other placeholders and Templater scripts are not supported.')});
+    dailyFields.createEl('textarea',{cls:'codex-daybook-query',text:QUERY,attr:{readonly:'true',rows:'6','aria-label':t('Dataview query example')}});
+    new Setting(dailyFields).addButton(b=>bindButton(b,t('Copy query'),async()=>{await navigator.clipboard.writeText(QUERY);p.diagnostic=t('Query copied to clipboard.');}));
   }
 }
 module.exports=class CodexDailySync extends Plugin {

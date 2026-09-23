@@ -85,7 +85,25 @@ body .workspace-leaf-content .markdown-view-content .codex-conversation .callout
 .codex-daybook-file-picker { display: none; }
 .codex-daybook-query { width: 100%; }
 
-.codex-daybook-advanced { margin: 1em 0; }
-.codex-daybook-advanced > summary { cursor: pointer; color: var(--text-muted); padding: 0.5em 0; }
-
-.codex-daybook-daily-section { margin: 0.2em 0; }
+.codex-daybook-tabs {
+  display: flex;
+  gap: 0.4em;
+  margin: 0.8em 0 1.2em;
+  padding-bottom: 0.6em;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.codex-daybook-tab {
+  padding: 0.4em 1.1em;
+  border: none;
+  border-radius: 6px;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: 0.95em;
+  cursor: pointer;
+}
+.codex-daybook-tab.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.codex-daybook-panel-basic,
+.codex-daybook-panel-daily { margin: 0.2em 0; }

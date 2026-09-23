@@ -28,6 +28,13 @@ class FakeEl {
   setAttribute(name,value){this.attrs[name]=String(value);}
   remove(){this.removed=true;if(this.parent)this.parent.children=this.parent.children.filter(c=>c!==this);}
   click(){this.clickCount=(this.clickCount||0)+1;}
+  // Mirrors Obsidian's own HTMLElement.toggleClass(classes, force) helper.
+  toggleClass(cls,force){
+    const classes=new Set((this.cls||'').split(' ').filter(Boolean));
+    const has=classes.has(cls);
+    if(force===undefined?!has:force)classes.add(cls);else classes.delete(cls);
+    this.cls=[...classes].join(' ');
+  }
 }
 class FakeTextComponent {
   constructor(containerEl){this.el=containerEl.createEl('input',{type:'text'});this.inputEl=this.el;this.changeHandlers=[];}
@@ -119,24 +126,47 @@ test('renders the one remaining heading (no plugin-name heading, per Obsidian li
   assert.ok(paragraphs.some(el=>el.text==='Syncing'));
 });
 
-test('a fresh install starts with daily track off and its section hidden; enabling it needs no other typing to work',async()=>{
+function tabButtons(c){return c.children.find(el=>el.cls?.includes('codex-daybook-tabs')).children;}
+
+test('the settings tab opens on Basic settings, with the Daily track tab and its fields hidden until both are switched on',async()=>{
   const {plugin,tab}=await buildTab();
   tab.display();
   const c=tab.containerEl;
-  const dailySection=c.children.find(el=>el.cls==='codex-daybook-daily-section');
-  assert.ok(dailySection);assert.equal(dailySection.hidden,true);
+  const basicPanel=c.children.find(el=>el.cls==='codex-daybook-panel-basic');
+  const dailyPanel=c.children.find(el=>el.cls==='codex-daybook-panel-daily');
+  assert.ok(basicPanel);assert.ok(dailyPanel);
+  assert.equal(basicPanel.hidden,false);assert.equal(dailyPanel.hidden,true);
+  const dailyFields=findEl(dailyPanel,el=>el.cls==='codex-daybook-daily-fields');
+  assert.ok(dailyFields);assert.equal(dailyFields.hidden,true);
   const toggle=allSettings(c).find(s=>s.name==='Enable daily track').components.find(x=>x instanceof FakeToggleComponent);
   assert.equal(toggle.val,false);
   await toggle.toggle(true);
-  assert.equal(dailySection.hidden,false);
+  assert.equal(dailyFields.hidden,false);
   // The fields underneath already carry the working built-in defaults —
   // enabling needs no further typing.
   const fields=textComponents(c);
-  assert.equal(fields[3].value,'Daily');assert.equal(fields[4].value,'');
+  assert.equal(fields[5].value,'Daily');assert.equal(fields[6].value,'');
   let captured;plugin.configure=async d=>{captured=d;};
   await findButton(c,'Save settings').press();
   assert.equal(captured.dailyTrackEnabled,true);
   assert.equal(captured.dailyFolder,'Daily');
+});
+
+test('clicking the tab buttons switches the visible panel and marks the active tab',async()=>{
+  const {tab}=await buildTab();
+  tab.display();
+  const c=tab.containerEl;
+  const [basicButton,dailyButton]=tabButtons(c);
+  assert.equal(basicButton.text,'Basic settings');assert.equal(dailyButton.text,'Daily track');
+  assert.ok(basicButton.cls.includes('is-active'));assert.ok(!dailyButton.cls.includes('is-active'));
+  const basicPanel=c.children.find(el=>el.cls==='codex-daybook-panel-basic');
+  const dailyPanel=c.children.find(el=>el.cls==='codex-daybook-panel-daily');
+  dailyButton.onclick();
+  assert.equal(basicPanel.hidden,true);assert.equal(dailyPanel.hidden,false);
+  assert.ok(!basicButton.cls.includes('is-active'));assert.ok(dailyButton.cls.includes('is-active'));
+  basicButton.onclick();
+  assert.equal(basicPanel.hidden,false);assert.equal(dailyPanel.hidden,true);
+  assert.ok(basicButton.cls.includes('is-active'));assert.ok(!dailyButton.cls.includes('is-active'));
 });
 
 test('toggling daily track does not discard an unrelated unsaved draft edit (no full re-display on toggle)',async()=>{
@@ -144,10 +174,10 @@ test('toggling daily track does not discard an unrelated unsaved draft edit (no 
   tab.display();
   const c=tab.containerEl;
   await textComponents(c)[0].type('Not Yet Saved'); // noteFolder, unrelated to the toggle
-  const dailySection=c.children.find(el=>el.cls==='codex-daybook-daily-section');
+  const dailyFields=findEl(c,el=>el.cls==='codex-daybook-daily-fields');
   const toggle=allSettings(c).find(s=>s.name==='Enable daily track').components.find(x=>x instanceof FakeToggleComponent);
   await toggle.toggle(true);
-  assert.equal(dailySection.hidden,false);
+  assert.equal(dailyFields.hidden,false);
   assert.equal(textComponents(c)[0].value,'Not Yet Saved');
   let captured;plugin.configure=async d=>{captured=d;};
   await findButton(c,'Save settings').press();
@@ -168,12 +198,12 @@ test('text fields initialize from settings and flow into the draft; interval coe
   const {plugin,tab}=await buildTab();
   tab.display();
   const c=tab.containerEl;
-  const fields=textComponents(c); // noteFolder, attachmentFolder, executable, dailyFolder, dailyTemplate, timeZone, intervalSeconds
+  const fields=textComponents(c); // noteFolder, attachmentFolder, executable, timeZone, intervalSeconds, dailyFolder, dailyTemplate
   assert.equal(fields.length,7);
   assert.equal(fields[0].value,'Codex Conversations');
-  assert.equal(fields[6].value,'10');
+  assert.equal(fields[4].value,'10');
   await fields[0].type('New Folder');
-  await fields[6].type('30');
+  await fields[4].type('30');
   let captured;plugin.configure=async d=>{captured=d;};
   await findButton(c,'Save settings').press();
   assert.equal(captured.noteFolder,'New Folder');
@@ -195,8 +225,8 @@ test('folder fields suggest existing vault folders and still accept a new path',
   const fields=textComponents(tab.containerEl);
   assert.equal(fields[0].inputEl.attrs.list,'codex-daybook-folder-noteFolder');
   assert.equal(fields[1].inputEl.attrs.list,'codex-daybook-folder-attachmentFolder');
-  assert.equal(fields[3].inputEl.attrs.list,'codex-daybook-folder-dailyFolder');
-  assert.equal(fields[4].inputEl.attrs.list,undefined);
+  assert.equal(fields[5].inputEl.attrs.list,'codex-daybook-folder-dailyFolder');
+  assert.equal(fields[6].inputEl.attrs.list,undefined);
   await fields[0].type('New Folder');
   assert.equal(fields[0].value,'New Folder');
 });
@@ -206,7 +236,7 @@ test('daily template suggests Markdown files and exposes a template chooser',asy
   tab.display();
   const list=tab.containerEl.children.find(el=>el.attrs.id==='codex-daybook-template-dailyTemplate');
   assert.deepEqual(list.children.map(option=>option.attrs.value),['90_Templates/Daily.md','90_Templates/Meeting.md']);
-  assert.equal(textComponents(tab.containerEl)[4].inputEl.attrs.list,'codex-daybook-template-dailyTemplate');
+  assert.equal(textComponents(tab.containerEl)[6].inputEl.attrs.list,'codex-daybook-template-dailyTemplate');
   assert.equal(findButton(tab.containerEl,'Choose template…').disabled,false);
 });
 
@@ -219,16 +249,16 @@ test('time zone field offers the full IANA list as suggestions and still accepts
   const values=list.children.map(option=>option.attrs.value);
   assert.ok(values.includes('Asia/Shanghai'));assert.ok(values.includes('Europe/London'));
   const fields=textComponents(c);
-  assert.equal(fields[5].inputEl.attrs.list,'codex-daybook-timezone');
-  await fields[5].type('Asia/Tokyo');
-  assert.equal(fields[5].value,'Asia/Tokyo');
+  assert.equal(fields[3].inputEl.attrs.list,'codex-daybook-timezone');
+  await fields[3].type('Asia/Tokyo');
+  assert.equal(fields[3].value,'Asia/Tokyo');
 });
 
 test('consent toggle initializes from settings and flows into the draft',async()=>{
   const {plugin,tab}=await buildTab();
   tab.display();
   const c=tab.containerEl;
-  const toggle=c.settings.flatMap(s=>s.components).find(x=>x instanceof FakeToggleComponent);
+  const toggle=allSettings(c).flatMap(s=>s.components).find(x=>x instanceof FakeToggleComponent);
   assert.equal(toggle.val,false);
   await toggle.toggle(true);
   let captured;plugin.configure=async d=>{captured=d;};
@@ -389,28 +419,28 @@ test('Copy query confirms success rather than displaying stale sync status',asyn
 
 test('Chinese selection saves with the draft, refreshes the UI and commands, and persists across reload',async()=>{
   const {plugin,tab}=await buildTab();tab.display();const c=tab.containerEl;
-  const dropdown=c.settings.flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent);
+  const dropdown=allSettings(c).flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent);
   assert.deepEqual(dropdown.options,{zh:'简体中文',en:'English'});
   await textComponents(c)[0].type('Custom Notes');await dropdown.select('zh');
   assert.equal(plugin.state.settings.language,'en','selection alone is not saved');
   let stored;plugin.saveData=async state=>{stored=JSON.parse(JSON.stringify(state));};
   await findButton(c,'Save settings').press();
   assert.equal(stored.settings.language,'zh');assert.equal(stored.settings.noteFolder,'Custom Notes');
-  assert.ok(c.settings.some(s=>s.name==='语言'));
+  assert.ok(allSettings(c).some(s=>s.name==='语言'));
   assert.ok(c.children.some(el=>el.text==='设置已保存，同步已暂停。请先检查连接，再开始同步。'));
   assert.equal(plugin.localizedCommands[0][0].name,'Codex Daybook: 立即同步已加入的任务');
   const reloaded=await buildTab(stored);reloaded.tab.display();
-  assert.ok(reloaded.tab.containerEl.settings.some(s=>s.name==='语言'));
-  const picker=reloaded.tab.containerEl.settings.flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent);
+  assert.ok(allSettings(reloaded.tab.containerEl).some(s=>s.name==='语言'));
+  const picker=allSettings(reloaded.tab.containerEl).flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent);
   await picker.select('en');await findButton(reloaded.tab.containerEl,'保存设置').press();
-  assert.ok(reloaded.tab.containerEl.settings.some(s=>s.name==='Language'));
+  assert.ok(allSettings(reloaded.tab.containerEl).some(s=>s.name==='Language'));
   assert.equal(reloaded.plugin.localizedCommands[0][0].name,'Codex Daybook: Sync enrolled tasks now');
   assert.equal(reloaded.plugin.state.settings.noteFolder,'Custom Notes');
 });
 
 test('Chinese setting validation and connection gate show translated errors',async()=>{
   const {plugin,tab}=await buildTab({settings:{...defaults(),language:'zh'}});tab.display();
-  const c=tab.containerEl;await textComponents(c)[6].type('2');
+  const c=tab.containerEl;await textComponents(c)[4].type('2');
   await findButton(c,'保存设置').press();
   assert.ok(c.children.some(el=>el.text==='检查间隔必须是 5–3600 之间的整数秒。'));
   await assert.rejects(()=>plugin.connect(),e=>e.safeMessage==='请先确认库外访问权限并保存设置。');
@@ -419,20 +449,20 @@ test('Chinese setting validation and connection gate show translated errors',asy
 test('language save failure keeps the saved language and sync mappings unchanged',async()=>{
   const {plugin,tab}=await buildTab();tab.display();const c=tab.containerEl;
   const before=JSON.stringify(plugin.state);
-  await c.settings.flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent).select('zh');
+  await allSettings(c).flatMap(s=>s.components).find(x=>x instanceof FakeDropdownComponent).select('zh');
   plugin.saveData=async()=>{throw Error('disk full');};
   await findButton(c,'Save settings').press();assert.equal(JSON.stringify(plugin.state),before);
-  assert.ok(c.settings.some(s=>s.name==='Language'));
+  assert.ok(allSettings(c).some(s=>s.name==='Language'));
 });
 
-test('login controls are visible; the executable field sits with the top-tier settings while time zone and check interval stay inside collapsed advanced settings',async()=>{
+test('login controls, the executable field, and time zone/check interval all live in the Basic settings tab — no collapsed Advanced section',async()=>{
   const {tab}=await buildTab();tab.display();const c=tab.containerEl;
   assert.ok(findButton(c,'Log in to Codex'));assert.ok(findButton(c,'Cancel login'));
-  assert.ok(c.settings.some(s=>s.name==='Codex executable'));
-  const details=c.children.find(x=>x.tag==='details');assert.ok(details);assert.equal(details.attrs.open,undefined);
-  assert.ok(!details.settings.some(s=>s.name==='Codex executable'));
-  assert.ok(details.settings.some(s=>s.name==='Time zone'));
-  assert.ok(details.settings.some(s=>s.name==='Check interval (seconds)'));
+  assert.ok(!c.children.some(x=>x.tag==='details'),'the old collapsed Advanced section should be gone entirely');
+  const basicPanel=c.children.find(el=>el.cls==='codex-daybook-panel-basic');
+  assert.ok(basicPanel.settings.some(s=>s.name==='Codex executable'));
+  assert.ok(basicPanel.settings.some(s=>s.name==='Time zone'));
+  assert.ok(basicPanel.settings.some(s=>s.name==='Check interval (seconds)'));
 });
 test('login reuses an existing ChatGPT account without starting OAuth or importing notes',async()=>{
   const {plugin}=await buildTab({settings:{...defaults(),consent:true}});const before=JSON.stringify(plugin.state);const methods=[];let opened=0,stopped=0;
