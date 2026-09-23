@@ -418,6 +418,7 @@ test('Copy query confirms success rather than displaying stale sync status',asyn
   const {plugin,tab}=await buildTab();
   tab.display();
   const c=tab.containerEl,message=statusMessage(c);
+  assert.ok(allSettings(c).some(s=>s.name==='Copy the query text'));
   plugin.diagnostic='Sync started. The fixed starting point has been saved.'; // leftover from an earlier, unrelated action
   // Node's global `navigator` is a getter-only accessor; a plain assignment
   // silently no-ops (sloppy mode) rather than shadowing it, so it must be

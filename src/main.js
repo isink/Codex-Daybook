@@ -154,7 +154,8 @@ class SyncSettings extends PluginSettingTab {
     dailyFields.createEl('p',{cls:'codex-daybook-note',text:t('Using your own template or an existing daily note? Paste the code below into it to show links to conversations created that day. Install and enable Dataview to display the list. The built-in template already includes this code.')});
     dailyFields.createEl('p',{cls:'codex-daybook-note',text:t('In a custom template, {{date:YYYY-MM-DD}} becomes the date (for example, 2026-09-20). Other placeholders and Templater scripts are not supported.')});
     dailyFields.createEl('textarea',{cls:'codex-daybook-query',text:QUERY,attr:{readonly:'true',rows:'6','aria-label':t('Dataview query example')}});
-    new Setting(dailyFields).addButton(b=>bindButton(b,t('Copy query'),async()=>{await navigator.clipboard.writeText(QUERY);p.diagnostic=t('Query copied to clipboard.');}));
+    new Setting(dailyFields).setName(t('Copy the query text')).setDesc(t('Copies the Dataview block above to your clipboard, ready to paste into your own template or note.'))
+      .addButton(b=>bindButton(b,t('Copy query'),async()=>{await navigator.clipboard.writeText(QUERY);p.diagnostic=t('Query copied to clipboard.');}));
   }
 }
 module.exports=class CodexDailySync extends Plugin {

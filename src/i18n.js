@@ -48,6 +48,8 @@ const zh={
   "Conversation list for daily notes": "每日笔记中的对话列表",
   "Using your own template or an existing daily note? Paste the code below into it to show links to conversations created that day. Install and enable Dataview to display the list. The built-in template already includes this code.": "用自己的模板或已有的每日笔记？把下面的代码粘贴进去即可显示当天的对话链接（自带模板已包含）。需要安装并启用 Dataview 才能显示。",
   "Dataview query example": "Dataview 查询示例",
+  "Copy the query text": "复制查询代码",
+  "Copies the Dataview block above to your clipboard, ready to paste into your own template or note.": "复制上方的 Dataview 代码块到剪贴板，可直接粘贴进你自己的模板或笔记。",
   "Copy query": "复制查询",
   "Query copied to clipboard.": "查询已复制到剪贴板。",
   "Could not open the image — check the local copy.": "无法打开图片，请检查本地副本。",
