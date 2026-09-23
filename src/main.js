@@ -40,12 +40,17 @@ class TemplatePicker extends FuzzySuggestModal {
 class SyncSettings extends PluginSettingTab {
   constructor(app,plugin){super(app,plugin);this.plugin=plugin;}
   hide(){this.plugin.authMessageEl=null;}
-  // An in-progress draft can be passed back in (by the language dropdown, to
-  // preview a language switch instantly) so re-rendering never discards
-  // other unsaved edits or resets which tab is open — the same concern the
-  // daily-track toggle's `.hidden`-only approach already protects against.
-  display(preservedDraft){
-    const p=this.plugin,c=this.containerEl;c.empty();const draft=preservedDraft||{...p.state.settings};const t=(message,values)=>translate(draft.language,message,values);
+  // this._draft, when set, is an in-progress draft to reuse on the next
+  // render (by the language dropdown, to preview a language switch
+  // instantly) so re-rendering never discards other unsaved edits or resets
+  // which tab is open — the same concern the daily-track toggle's
+  // `.hidden`-only approach already protects against. display() itself stays
+  // a plain no-argument override — Obsidian's settings-tab lint requires
+  // refreshes to go through this.update() (the 1.13+ refresh API), which
+  // calls display() with no arguments, so the draft can't be passed as a
+  // parameter — it's consumed from the instance instead, once, right here.
+  display(){
+    const p=this.plugin,c=this.containerEl;c.empty();const draft=this._draft||{...p.state.settings};this._draft=null;const t=(message,values)=>translate(draft.language,message,values);
     // Obsidian's official settings-tab lint (no-problematic-settings-headings)
     // rejects a heading that repeats the plugin's own name — the settings tab
     // already shows it. Lead straight into the settings themselves.
@@ -94,7 +99,7 @@ class SyncSettings extends PluginSettingTab {
 
     // Basic settings tab — everything needed to just collect conversations.
     new Setting(basicPanel).setName(t('Language')).setDesc(t('Updates this settings panel immediately. Save settings to also apply it to notices and command names.'))
-      .addDropdown(d=>d.addOption('zh','简体中文').addOption('en','English').setValue(draft.language).onChange(value=>{draft.language=value;this.display(draft);}));
+      .addDropdown(d=>d.addOption('zh','简体中文').addOption('en','English').setValue(draft.language).onChange(value=>{draft.language=value;this._draft=draft;this.update();}));
     addField(basicPanel,'noteFolder',t('Notes folder'),t('Vault-relative folder for synced conversation notes.'));
     addField(basicPanel,'attachmentFolder',t('Attachments folder'),t('Vault-relative folder for copied images.'));
     let executableField;
