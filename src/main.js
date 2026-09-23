@@ -41,8 +41,7 @@ class SyncSettings extends PluginSettingTab {
     const p=this.plugin,c=this.containerEl;c.empty();const draft={...p.state.settings};const t=p.t.bind(p);
     // Obsidian's official settings-tab lint (no-problematic-settings-headings)
     // rejects a heading that repeats the plugin's own name — the settings tab
-    // already shows it. Lead with the description instead of a heading.
-    c.createEl('p',{cls:'codex-daybook-note',text:t('Syncs local Codex Desktop main tasks only — never your general ChatGPT history. Windows support has not been hardware-tested. Folder and time-zone changes apply only to tasks added afterward.')});
+    // already shows it. Lead straight into the settings themselves.
     for(const warning of p.state.migrationWarnings||[])c.createEl('p',{cls:'codex-daybook-note is-warning',text:t(warning)});
 
     new Setting(c).setName(t('Language')).setDesc(t('Save settings to apply the selected language.'))
