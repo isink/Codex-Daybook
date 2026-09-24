@@ -1,7 +1,7 @@
 const fs=require('node:fs');
 const path=require('node:path');
 function codexExecutable(explicit='',{platform=process.platform,env=process.env,exists=p=>{try{return fs.statSync(p).isFile();}catch{return false;}}}={}){
-  if(!['darwin','win32'].includes(platform))throw Error('This release candidate only supports macOS and Windows.');
+  if(!['darwin','win32'].includes(platform))throw Error('This plugin only supports macOS and Windows.');
   const paths=platform==='win32'?path.win32:path.posix;
   if(explicit){
     if(!paths.isAbsolute(explicit)||!exists(explicit)||(platform==='win32'&&!/\.exe$/i.test(explicit)))throw Error('Choose a real Codex executable — on Windows it must be a .exe.');

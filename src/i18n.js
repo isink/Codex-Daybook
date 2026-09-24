@@ -101,7 +101,7 @@ const zh={
   "Couldn't confirm the old note's daily link — migration stopped.": "无法确认旧笔记的每日链接，迁移已停止。",
   "Confirm the time zone for new tasks — existing notes' creation times and daily links are unchanged.": "请确认新任务的时区；已有笔记的创建时间与每日链接保持不变。",
   "Confirm outside-vault access and pass the connection check first.": "请先确认库外访问权限，并通过连接检查。",
-  "This release candidate only supports macOS and Windows.": "此候选版仅支持 macOS 和 Windows。",
+  "This plugin only supports macOS and Windows.": "此插件仅支持 macOS 和 Windows。",
   "Choose a real Codex executable — on Windows it must be a .exe.": "请选择真实的 Codex 可执行文件，Windows 下必须是 .exe 文件。",
   "Codex executable not found — choose it in settings. Nothing is installed or added to PATH automatically.": "未找到 Codex 可执行文件，请在设置中选择。插件不会自动安装程序或修改 PATH。",
   "The pagination interface format is incompatible.": "分页接口格式不兼容。",

@@ -1,8 +1,8 @@
-# Codex Daybook 0.5.7
+# Codex Daybook 0.5.8
 
 Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Markdown 笔记。可选开启每日轨迹，按创建日加入 Dataview 每日轨迹。不是 ChatGPT 历史同步器：只处理本机 Codex Desktop 主任务，且只有开始同步之后新建的任务才会被采集。
 
-公开发布候选版，源码见 [isink/obsidian-codex-daily-sync](https://github.com/isink/obsidian-codex-daily-sync)，采用 MIT 许可证。**Windows 尚未完成实机验收，社区目录审核也未完成；候选版不等于已上架。**
+已进入 Obsidian 社区插件目录，源码见 [isink/obsidian-codex-daily-sync](https://github.com/isink/obsidian-codex-daily-sync)，采用 MIT 许可证。当前条目尚未经过 Obsidian 员工人工审核；Windows 实机验收仍待完成。
 
 [English guide](README.en.md) · [隐私说明](PRIVACY.md) · [变更日志](CHANGELOG.md)
 
@@ -20,7 +20,7 @@ Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Mar
 
 ## 同步范围
 
-只导出已完成轮次的用户消息、正式答复和正式计划；工具调用、推理过程、系统消息，以及进行中或失败的轮次不会被导出。本地 PNG/JPEG/GIF/WebP 图片会复制进库内并按内容去重；远程图片不会下载。每个任务固定自己的目录、时区和创建日，之后改设置不影响旧笔记。已同步且无变化的对话不会重写笔记；对话内容以外的个人文字和自定义属性会保留。删除或归档源对话不会自动删除本地笔记、图片或每日链接。
+只导出已完成轮次的用户消息、正式答复和正式计划；工具调用、推理过程、系统消息，以及进行中或失败的轮次不会被导出。用户附带及 Codex 图像工具生成的本地 PNG/JPEG/GIF/WebP 图片会复制进库内并按内容去重；远程图片不会下载。每个任务固定自己的目录、时区和创建日，之后改设置不影响旧笔记。已同步且无变化的对话不会重写笔记；对话内容以外的个人文字和自定义属性会保留。删除或归档源对话不会自动删除本地笔记、图片或每日链接。
 
 ## 登录
 

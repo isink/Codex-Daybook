@@ -1,6 +1,6 @@
 {
   "name": "codex-daily-sync",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "private": true,
   "scripts": {
     "build": "node build.js",
