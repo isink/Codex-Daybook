@@ -11,61 +11,77 @@ function imageExtension(bytes) {
   return null;
 }
 
-// Read only explicit local image fields from completed user messages. Never
-// walk directories, interpret text paths, fetch URLs, or remove cached assets.
+// Explicit image sources only: local images attached to completed user
+// messages, and images Codex itself generated in a completed turn. Never walk
+// directories, interpret text paths, fetch URLs, or remove cached assets.
+function imageSources(snapshot) {
+  const completed=new Set(snapshot.turns.filter(t=>t.status==='completed').map(t=>t.id));
+  const sources=[];
+  for(const {turnId,item} of snapshot.entries) {
+    if(!completed.has(turnId))continue;
+    if(item.type==='userMessage') {
+      for(const [index,input] of item.content.entries())if(input.type==='localImage')sources.push({key:attachmentKey(turnId,item,index),source:input.path,path:input.path});
+    } else if(item.type==='imageGeneration' && item.status==='completed') {
+      // savedPath is Codex's own copy under generated_images; result carries
+      // the same image base64-encoded, so it survives that cache being cleared.
+      const saved=typeof item.savedPath==='string'?item.savedPath:null;
+      sources.push({key:attachmentKey(turnId,item,0),source:saved||`imageGeneration:${item.id}`,path:saved,inline:typeof item.result==='string'&&item.result?item.result:null});
+    }
+  }
+  return sources;
+}
+
 async function prepareAttachments(vault,snapshot,stored={}, {alive=()=>true,readLocal=fs.readFile,attachmentFolder='Attachments/Codex'}={}) {
   if(!/^[a-zA-Z0-9-]+$/.test(snapshot.thread.id))throw Error('任务 ID 无效');
   const folder=`${attachmentFolder}/${snapshot.thread.id}`;
   const mapping={...stored}, images={}, seen=new Set();
-  const completed=new Set(snapshot.turns.filter(t=>t.status==='completed').map(t=>t.id));
   const check=()=>{if(!alive())throw Error('插件已停止');};
   let copied=0,missing=0,unsupported=0;
-  for(const {turnId,item} of snapshot.entries) {
-    if(!completed.has(turnId) || item.type!=='userMessage')continue;
-    for(const [index,input] of item.content.entries()) {
-      if(input.type!=='localImage')continue;
-      check();
-      const key=attachmentKey(turnId,item,index);
-      if(seen.has(key))continue;
-      seen.add(key);
-      const cached=mapping[key];
-      // A permanently-unsupported format never becomes readable on retry —
-      // this must be checked, and must skip readLocal entirely, before the
-      // success-cache check below, which needs a `.path` this marker lacks.
-      if(cached?.unsupported && cached.source===input.path) {
-        unsupported++;images[key]=cached;continue;
-      }
-      const cachedName=cached?.path?.startsWith(folder+'/')?cached.path.slice(folder.length+1):'';
-      const existing=/^[a-f0-9]{64}\.(png|jpg|gif|webp)$/.test(cachedName) && vault.getAbstractFileByPath(cached.path);
-      if(cached?.source===input.path && existing && !('children' in existing)) {
-        images[key]=cached.path;
-        continue;
-      }
-      let bytes;
-      try {
-        if(typeof input.path!=='string' || !path.isAbsolute(input.path))throw Error('非本地路径');
-        bytes=Buffer.from(await readLocal(input.path));
-      } catch { missing++;continue; }
-      check();
-      const extension=imageExtension(bytes);
-      if(!extension){
-        mapping[key]={source:input.path,unsupported:true};
-        unsupported++;images[key]=mapping[key];
-        continue;
-      }
-      const hash=createHash('sha256').update(bytes).digest('hex');
-      const target=`${folder}/${hash}.${extension}`;
-      await ensureFolder(vault,folder);
-      check();
-      const file=vault.getAbstractFileByPath(target);
-      if(file && 'children' in file)throw Error('图片副本路径被目录占用');
-      if(!file) {
-        await vault.createBinary(target,bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
-        copied++;
-      }
-      mapping[key]={source:input.path,path:target};
-      images[key]=target;
+  for(const input of imageSources(snapshot)) {
+    check();
+    const key=input.key;
+    if(seen.has(key))continue;
+    seen.add(key);
+    const cached=mapping[key];
+    // A permanently-unsupported format never becomes readable on retry —
+    // this must be checked, and must skip readLocal entirely, before the
+    // success-cache check below, which needs a `.path` this marker lacks.
+    if(cached?.unsupported && cached.source===input.source) {
+      unsupported++;images[key]=cached;continue;
     }
+    const cachedName=cached?.path?.startsWith(folder+'/')?cached.path.slice(folder.length+1):'';
+    const existing=/^[a-f0-9]{64}\.(png|jpg|gif|webp)$/.test(cachedName) && vault.getAbstractFileByPath(cached.path);
+    if(cached?.source===input.source && existing && !('children' in existing)) {
+      images[key]=cached.path;
+      continue;
+    }
+    let bytes;
+    try {
+      if(typeof input.path!=='string' || !path.isAbsolute(input.path))throw Error('非本地路径');
+      bytes=Buffer.from(await readLocal(input.path));
+    } catch {
+      if(!input.inline){missing++;continue;}
+      bytes=Buffer.from(input.inline,'base64');
+    }
+    check();
+    const extension=imageExtension(bytes);
+    if(!extension){
+      mapping[key]={source:input.source,unsupported:true};
+      unsupported++;images[key]=mapping[key];
+      continue;
+    }
+    const hash=createHash('sha256').update(bytes).digest('hex');
+    const target=`${folder}/${hash}.${extension}`;
+    await ensureFolder(vault,folder);
+    check();
+    const file=vault.getAbstractFileByPath(target);
+    if(file && 'children' in file)throw Error('图片副本路径被目录占用');
+    if(!file) {
+      await vault.createBinary(target,bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
+      copied++;
+    }
+    mapping[key]={source:input.source,path:target};
+    images[key]=target;
   }
   return {mapping,images,copied,missing,unsupported};
 }

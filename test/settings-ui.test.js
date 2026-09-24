@@ -109,6 +109,9 @@ async function buildTab(stateOverrides={},vaultOverrides={}){
     Object.assign(plugin,{
       manifest:{id:'codex-daily-sync',name:'Codex Daybook'},loadData:async()=>state,saveData:async()=>{},
       addSettingTab:t=>{tab=t;},addStatusBarItem:()=>({setText:()=>{}}),addCommand:command=>({...command,name:'Codex Daybook: '+command.name}),registerDomEvent:()=>{},
+      // UI tests may render an already-enabled saved state. Do not let
+      // onLayoutReady() start the real Codex process merely to paint status.
+      resume:async()=>{},
       app:{vault:{getAllFolders:()=>vaultOverrides.folders||[],getMarkdownFiles:()=>vaultOverrides.markdownFiles||[]},workspace:{onLayoutReady:fn=>fn()}},
     });
     await plugin.onload();

@@ -291,6 +291,57 @@ test('ignore active turns and remote/text paths; cached targets cannot escape th
   assert.equal(reads,1);
 });
 
+const generatedSnapshot=(items,status='completed')=>({thread,turns:[{id:'done',status,startedAt:1789389994,completedAt:1789390155}],entries:[
+  entry('ask','userMessage',{content:[{type:'text',text:'生成一张小猫图片'}]}),
+  ...items,
+]});
+const generatedImage=(id,props={})=>entry(id,'imageGeneration',{status:'completed',revisedPrompt:null,result:png.toString('base64'),failure:null,savedPath:`/tmp/generated/${id}.png`,...props});
+
+test('an image Codex generates is copied into the attachments folder and shown under that turn\'s answer',async t=>{
+  const vault=await testVault(t);
+  const s=generatedSnapshot([generatedImage('gen-1'),entry('reply','agentMessage',{phase:'final_answer',text:'已生成一张小猫图片。'})]);
+  const reads=[];
+  const assets=await prepareAttachments(vault,s,{}, {readLocal:async p=>{reads.push(p);return png;}});
+  assert.deepEqual(reads,['/tmp/generated/gen-1.png']);assert.equal(assets.copied,1);assert.equal(assets.missing,0);
+  const key=c.attachmentKey('done',s.entries[1].item,0);
+  assert.match(assets.images[key],/Attachments\/Codex\/fixture-main-task\/[a-f0-9]{64}\.png$/);
+  assert.equal(assets.mapping[key].source,'/tmp/generated/gen-1.png');
+  const md=c.renderTranscript(s.turns,s.entries,assets.images);
+  // Exactly one Codex block, text first, image below it.
+  assert.equal(md.split('[!codex-answer]').length,2);
+  assert.ok(md.indexOf('已生成一张小猫图片。')<md.indexOf(`![[${assets.images[key]}]]`));
+  // Restart with the vault copy present: no re-read.
+  const again=await prepareAttachments(vault,s,JSON.parse(JSON.stringify(assets.mapping)),{readLocal:async()=>{throw Error('must not re-read');}});
+  assert.equal(again.copied,0);assert.deepEqual(again.images,assets.images);
+});
+
+test('a generated image falls back to its inline data when Codex\'s own saved copy is gone; with neither it is retried later',async t=>{
+  const vault=await testVault(t);
+  const s=generatedSnapshot([generatedImage('gen-1'),entry('reply','agentMessage',{phase:'final_answer',text:'图好了'})]);
+  const fromInline=await prepareAttachments(vault,s,{}, {readLocal:async()=>{throw Error('ENOENT');}});
+  assert.equal(fromInline.copied,1);assert.equal(fromInline.missing,0);
+  const target=Object.values(fromInline.images)[0];
+  assert.deepEqual(await fs.readFile(path.join(vault.root,target)),png);
+  const bare=generatedSnapshot([generatedImage('gen-2',{result:'',savedPath:undefined}),entry('reply','agentMessage',{phase:'final_answer',text:'图好了'})]);
+  const none=await prepareAttachments(vault,bare,{}, {readLocal:async()=>{throw Error('ENOENT');}});
+  assert.equal(none.missing,1);
+  assert.ok(c.renderTranscript(bare.turns,bare.entries,none.images).includes('生成的图片暂不可用'));
+});
+
+test('failed or unfinished image generations are ignored; a turn with no written reply still shows its image once',async t=>{
+  const vault=await testVault(t);let reads=0;
+  const readLocal=async()=>{reads++;return png;};
+  const failed=generatedSnapshot([generatedImage('gen-x',{status:'failed',failure:{type:'usageLimitExceeded',limitId:'x',resetsAt:null}}),entry('reply','agentMessage',{phase:'final_answer',text:'额度用完了'})]);
+  assert.equal(Object.keys((await prepareAttachments(vault,failed,{}, {readLocal})).images).length,0);
+  assert.ok(!c.renderTranscript(failed.turns,failed.entries,{}).includes('生成的图片'));
+  const active=generatedSnapshot([generatedImage('gen-y')],'inProgress');
+  await prepareAttachments(vault,active,{}, {readLocal});assert.equal(reads,0);
+  const silent=generatedSnapshot([generatedImage('gen-z'),generatedImage('gen-z')]);
+  const assets=await prepareAttachments(vault,silent,{}, {readLocal});
+  const md=c.renderTranscript(silent.turns,silent.entries,assets.images);
+  assert.equal(md.split('[!codex-answer]').length,2);assert.equal(md.split('![[').length,2);
+});
+
 test('attachment write failure does not reach note replacement',async t=>{
   const vault=await testVault(t);const initial=await c.syncToVault(vault,{thread,transcript:'最后成功版本'});
   const file=vault.getAbstractFileByPath(initial.notePath);const before=await vault.read(file);

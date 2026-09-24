@@ -1,7 +1,7 @@
 require('./setup');
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {syncBatch,StateWriteError}=require('../src/batch');
+const {syncBatch,StateWriteError,PUBLICATION_VERSION}=require('../src/batch');
 const {defaults,routing}=require('../src/settings');
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
 
@@ -86,7 +86,15 @@ test('old acknowledged signature is reconciled once, preserving cutoff, routing 
   await f.persist(old);const result=await f.run();assert.equal(result.report.changed,1);
   assert.match(f.note.text,/RESPONSE 2/);assert.match(f.note.text,/Personal text/);
   assert.equal(f.saved.discoveryStartedAt,cutoff);assert.deepEqual(f.record.routing,route);
-  assert.equal(f.record.publicationVersion,1);assert.equal((await f.run()).report.changed,0);
+  assert.equal(f.record.publicationVersion,PUBLICATION_VERSION);assert.equal((await f.run()).report.changed,0);
+});
+
+test('a task settled by the previous release gets exactly one full re-read, then settles again',async()=>{
+  const f=fixture();await f.run();
+  const old=JSON.parse(JSON.stringify(f.saved));old.threads[f.thread.id].publicationVersion=1;await f.persist(old);
+  let fullReads=0;const rpc=async(m,p)=>{if(m==='thread/items/list')fullReads++;return f.rpc(m,p);};
+  await f.run({rpc});assert.equal(fullReads,1);assert.equal(f.record.publicationVersion,PUBLICATION_VERSION);
+  await f.run({rpc});assert.equal(fullReads,1);
 });
 
 test('interrupted first indexing write recovers the renamed note and emits a modify event',async()=>{

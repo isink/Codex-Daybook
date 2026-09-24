@@ -5,6 +5,10 @@ const {routing,defaults}=require('./settings');
 const {CompatibilityError}=require('./errors');
 
 class StateWriteError extends Error {}
+// Bumped whenever note rendering gains content that already-settled tasks
+// should pick up (2: images Codex generated). A record below this version
+// gets exactly one full reconciliation, then settles again.
+const PUBLICATION_VERSION=2;
 function sourceMessage(vault,record) {
   return record?.notePath && vault.getAbstractFileByPath(record.notePath)
     ? '源对话暂不可用，本地副本已保留' : '源对话暂不可用，尚未生成本地副本';
@@ -42,8 +46,8 @@ async function syncBatch({vault,rpc,state,persist,alive=()=>true,now=Date.now,re
     // the full read — this can only add a cheap round trip, never skip a real
     // update, a rename, or a missing-image retry.
     // Older releases could persist a signature before publishing the note.
-    // Missing publicationVersion deliberately forces one full reconciliation.
-    const settled=record.publicationVersion===1 && !record.syncPending && Boolean(record.notePath) && record.turnSignature!==undefined && !record.pendingImages;
+    // A missing or older publicationVersion forces one full reconciliation.
+    const settled=record.publicationVersion===PUBLICATION_VERSION && !record.syncPending && Boolean(record.notePath) && record.turnSignature!==undefined && !record.pendingImages;
     try {
       if(settled) {
         const thread=await verifyThread(rpc,id,{accountVerified:true});
@@ -73,7 +77,7 @@ async function syncBatch({vault,rpc,state,persist,alive=()=>true,now=Date.now,re
       check();
       const name=snapshot.thread.name||'Codex 对话';
       if(record.syncPending || record.notePath!==result.notePath || record.name!==name || result.changed) {
-        record={...record,name,notePath:result.notePath,turnSignature,pendingImages,syncPending:false,publicationVersion:1,...(result.notePath?{lastSuccess:new Date(now()).toISOString()}:{})};
+        record={...record,name,notePath:result.notePath,turnSignature,pendingImages,syncPending:false,publicationVersion:PUBLICATION_VERSION,...(result.notePath?{lastSuccess:new Date(now()).toISOString()}:{})};
         await commit({...current,threads:{...current.threads,[id]:record}});
       }
       if(result.changed)report.changed++;
@@ -86,4 +90,4 @@ async function syncBatch({vault,rpc,state,persist,alive=()=>true,now=Date.now,re
   report.notes=Object.values(current.threads).filter(t=>t.notePath&&vault.getAbstractFileByPath(t.notePath)).length;
   return {state:current,report};
 }
-module.exports={syncBatch,sourceMessage,StateWriteError};
+module.exports={PUBLICATION_VERSION,syncBatch,sourceMessage,StateWriteError};

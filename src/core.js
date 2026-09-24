@@ -60,8 +60,25 @@ function embedImageLinks(text, resolveEmbed) {
   });
 }
 
+function imageText(asset, unsupported, unavailable) {
+  if(typeof asset==='string') return `![[${asset}]]`;
+  return asset?.unsupported ? unsupported : unavailable;
+}
+
 function renderTranscript(turns, entries, images = {},timeZone,resolveEmbed) {
   const completed = new Map(turns.filter(t=>t.status === 'completed').map(t=>[t.id,t]));
+  // Images Codex generates arrive as their own items, before the reply that
+  // presents them; show them under that turn's last final answer instead.
+  const generated = new Map(), lastAnswer = new Map(), seenImages = new Set();
+  for (const {turnId,item} of entries) {
+    if (!completed.has(turnId)) continue;
+    if (item.type === 'agentMessage' && item.phase === 'final_answer') lastAnswer.set(turnId,item.id);
+    if (item.type === 'imageGeneration' && item.status === 'completed' && !seenImages.has(`${turnId}/${item.id}`)) {
+      seenImages.add(`${turnId}/${item.id}`);
+      if (!generated.has(turnId)) generated.set(turnId,[]);
+      generated.get(turnId).push(imageText(images[attachmentKey(turnId,item,0)],'（生成的图片格式不支持，未导入）','（生成的图片暂不可用，尚无库内副本）'));
+    }
+  }
   const seen = new Set();
   const blocks = [];
   for (const {turnId,item} of entries) {
@@ -79,16 +96,16 @@ function renderTranscript(turns, entries, images = {},timeZone,resolveEmbed) {
       const firstText=item.content.findIndex(c=>c.type==='text');
       text = item.content.map((c,index)=>{
         if(c.type==='text') return index===firstText?cleanUserText(c.text,item.content):c.text;
-        if(c.type==='localImage') {
-          const asset=images[attachmentKey(turnId,item,index)];
-          if(typeof asset==='string') return `![[${asset}]]`;
-          return asset?.unsupported ? '（图片格式不支持，未导入）' : '（图片原件暂不可用，尚无库内副本）';
-        }
+        if(c.type==='localImage') return imageText(images[attachmentKey(turnId,item,index)],'（图片格式不支持，未导入）','（图片原件暂不可用，尚无库内副本）');
         if(c.type==='image')return '（远程图片未导入）';
         return `（附件未导入：${c.type||'未知类型'}）`;
       }).join('\n\n');
     } else if (item.type === 'agentMessage' && item.phase === 'final_answer') {
       role = 'Codex'; text = embedImageLinks(item.text,resolveEmbed);
+      if (lastAnswer.get(turnId) === item.id && generated.has(turnId)) text = [text,...generated.get(turnId)].join('\n\n');
+    } else if (item.type === 'imageGeneration' && item.status === 'completed' && !lastAnswer.has(turnId) && generated.has(turnId)) {
+      // No written reply in this turn to attach to: show the images on their own, once.
+      role = 'Codex'; text = generated.get(turnId).join('\n\n'); generated.delete(turnId);
     } else if (item.type === 'plan') {
       role = 'Codex · 正式计划'; text = embedImageLinks(item.text,resolveEmbed);
     } else continue;
