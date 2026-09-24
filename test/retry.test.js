@@ -130,10 +130,16 @@ test('an existing task-ID attachment folder is moved to the note\'s name once, k
 });
 
 test('a note deleted in the vault is not brought back by an upgrade re-check, only by a new message',async()=>{
-  const f=fixture();await f.run();const path=f.note.path;f.files.delete(path);
-  const old=JSON.parse(JSON.stringify(f.saved));old.threads[f.thread.id].publicationVersion=1;await f.persist(old);
+  const f=fixture({image:true});await f.run();const path=f.note.path;f.files.delete(path);
+  // Rewind to a task-ID image folder, as the previous release left it.
+  const old=JSON.parse(JSON.stringify(f.saved)),record=old.threads[f.thread.id],legacy=`Attachments/Codex/${f.thread.id}`;
+  await f.vault.rename(f.files.get(record.attachmentDir),legacy);
+  for(const a of Object.values(record.attachments))a.path=a.path.replace(record.attachmentDir,legacy);
+  delete record.attachmentDir;record.publicationVersion=1;await f.persist(old);
   const result=await f.run();
   assert.equal(f.note,undefined);assert.equal(result.report.changed,0);assert.equal(result.report.errors.length,0);
+  // A deleted conversation's leftover image folder is not touched either.
+  assert.ok(f.files.has(legacy));assert.equal(f.record.attachmentDir,undefined);
   assert.equal(f.record.publicationVersion,PUBLICATION_VERSION);assert.equal(f.record.notePath,path);
   await f.run();assert.equal(f.note,undefined);
   f.setRevision(2);await f.run();

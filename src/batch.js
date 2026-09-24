@@ -63,6 +63,17 @@ async function syncBatch({vault,rpc,state,persist,alive=()=>true,now=Date.now,re
     catch(error){check();if(error instanceof CompatibilityError)throw error;report.errors.push({id,kind:'source',name:record.name||id.slice(-8),message:sourceMessage(vault,record)});continue;}
     check();report.checked++;
     try {
+      const turnSignature=latestTurnSignature(snapshot.turns);
+      if(record.notePath && JSON.stringify(turnSignature)===JSON.stringify(record.turnSignature) && !(await findNote(vault,id,record.notePath))) {
+        // The note was deleted in the vault and nothing new has been said
+        // since: leave it, and its image folder, untouched. A later new
+        // message recreates the note, as before.
+        if(record.publicationVersion!==PUBLICATION_VERSION || record.syncPending || record.pendingImages) {
+          record={...record,syncPending:false,pendingImages:false,publicationVersion:PUBLICATION_VERSION};
+          await commit({...current,threads:{...current.threads,[id]:record}});
+        }
+        continue;
+      }
       const route=record.routing||routing(current.settings||defaults(),snapshot.thread);
       // Choose the folder only once there is something to put in it, so it
       // can be named after the note whenever the note already exists.
@@ -81,16 +92,6 @@ async function syncBatch({vault,rpc,state,persist,alive=()=>true,now=Date.now,re
         }
         await moveLegacyDir(vault,legacyDir,attachmentDir);
         check();
-      }
-      const turnSignature=latestTurnSignature(snapshot.turns);
-      if(record.notePath && JSON.stringify(turnSignature)===JSON.stringify(record.turnSignature) && !(await findNote(vault,id,record.notePath))) {
-        // The note was deleted in the vault and nothing new has been said
-        // since: leave it deleted. A later new message recreates it, as before.
-        if(record.publicationVersion!==PUBLICATION_VERSION || record.syncPending || record.pendingImages) {
-          record={...record,syncPending:false,pendingImages:false,publicationVersion:PUBLICATION_VERSION};
-          await commit({...current,threads:{...current.threads,[id]:record}});
-        }
-        continue;
       }
       const assets=await prepareAttachments(vault,snapshot,record.attachments,{alive,readLocal,folder:attachmentDir||legacyDir});
       report.images+=Object.keys(assets.images).length;report.copiedImages+=assets.copied;report.missingImages+=assets.missing;
