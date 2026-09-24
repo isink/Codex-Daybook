@@ -5,7 +5,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const c=require('../src/core');
-const {prepareAttachments}=require('../src/attachments');
+const {prepareAttachments,chooseAttachmentDir}=require('../src/attachments');
 const thread={id:'fixture-main-task',name:'示例对话',createdAt:1789389994,originator:'Codex Desktop',source:'vscode',parentThreadId:null,ephemeral:false};
 const entry=(id,type,props={},turnId='done')=>({turnId,item:{id,type,...props}});
 
@@ -340,6 +340,33 @@ test('failed or unfinished image generations are ignored; a turn with no written
   const assets=await prepareAttachments(vault,silent,{}, {readLocal});
   const md=c.renderTranscript(silent.turns,silent.entries,assets.images);
   assert.equal(md.split('[!codex-answer]').length,2);assert.equal(md.split('![[').length,2);
+});
+
+test('attachment folders are named after the note, then the title; clashes get the short ID; a chosen name is never changed',async t=>{
+  const vault=await testVault(t);const id='kitten-fixture-453c2a52';
+  const choose=(record,threads={},name='生成小猫图片')=>chooseAttachmentDir(vault,threads,id,record,{...thread,id,name},'99_附件');
+  assert.equal(choose({notePath:'00_收件箱/生成小猫图片 (453c2a52).md'}),'99_附件/生成小猫图片 (453c2a52)');
+  assert.equal(choose({}),'99_附件/生成小猫图片');
+  assert.equal(choose({},{},'a/b: c?'),'99_附件/a－b－ c－');
+  // Taken by the user's own folder, or claimed by another conversation.
+  await vault.createFolder('99_附件/生成小猫图片');
+  assert.equal(choose({}),'99_附件/生成小猫图片 (453c2a52)');
+  assert.equal(choose({},{other:{attachmentDir:'99_附件/Only Mine'}},'only mine'),'99_附件/only mine (453c2a52)');
+  await vault.createFolder('99_附件/生成小猫图片 (453c2a52)');
+  assert.throws(()=>choose({}),/同名附件目录/);
+  assert.equal(choose({attachmentDir:'99_附件/旧名字'}),'99_附件/旧名字');
+});
+
+test('after a folder move, links Codex wrote itself to the old folder point at the new one; user text is left alone',()=>{
+  const turns=[{id:'done',status:'completed',startedAt:1789389994,completedAt:1789390155}];
+  const entries=[
+    entry('q','userMessage',{content:[{type:'text',text:'旧路径 99_附件/abc-id/x.png 原样保留'}]}),
+    entry('a','agentMessage',{phase:'final_answer',text:'已写入 ![[99_附件/abc-id/x.png]] 和 [原图](/Volumes/Notes/99_附件/abc-id/x.png)'}),
+  ];
+  const md=c.renderTranscript(turns,entries,{},undefined,undefined,{from:'99_附件/abc-id',to:'99_附件/小猫'});
+  assert.ok(md.includes('![[99_附件/小猫/x.png]]'));assert.ok(md.includes('(/Volumes/Notes/99_附件/小猫/x.png)'));
+  assert.ok(md.includes('旧路径 99_附件/abc-id/x.png 原样保留'));
+  assert.ok(!c.renderTranscript(turns,entries,{}).includes('99_附件/小猫'));
 });
 
 test('attachment write failure does not reach note replacement',async t=>{

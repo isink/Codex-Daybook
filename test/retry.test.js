@@ -15,7 +15,8 @@ function fixture({image=false}={}) {
     createBinary:async(p,bytes)=>vault.create(p,Buffer.from(bytes)),
     read:async f=>f.text,
     process:async(f,update)=>{f.text=update(f.text);return f.text;},
-    rename:async(f,p)=>{assert.ok(!files.has(p));files.delete(f.path);f.path=p;files.set(p,f);}
+    // Like Obsidian, renaming a folder moves everything inside it.
+    rename:async(f,p)=>{assert.ok(!files.has(p));if(f.children)for(const [k,v] of [...files])if(k.startsWith(f.path+'/')){files.delete(k);v.path=p+k.slice(f.path.length);files.set(v.path,v);}files.delete(f.path);f.path=p;files.set(p,f);}
   };
   let saved={schemaVersion:3,settings:{...defaults(),consent:true},enabled:true,discoveryStartedAt:1700000000,threads:{[thread.id]:{name:thread.name,notePath:null,attachments:{},routing:routing(defaults(),thread)}}};
   const rpc=async(m,p)=>{
@@ -33,7 +34,7 @@ function fixture({image=false}={}) {
   return {vault,files,rpc,persist,thread,
     get saved(){return saved;},get record(){return saved.threads[thread.id];},
     get note(){return [...files.values()].find(f=>typeof f.text==='string'&&f.text.includes('codex_thread_id:'));},
-    setRevision:n=>{revision=n;},setReadable:v=>{readable=v;},
+    setRevision:n=>{revision=n;},setReadable:v=>{readable=v;},rename:n=>{thread.name=n;},
     run:options=>syncBatch({vault,rpc,state:JSON.parse(JSON.stringify(saved)),persist,readLocal:async()=>{if(!readable)throw Error('Missing image');return png;},...options})};
 }
 
@@ -95,6 +96,57 @@ test('a task settled by the previous release gets exactly one full re-read, then
   let fullReads=0;const rpc=async(m,p)=>{if(m==='thread/items/list')fullReads++;return f.rpc(m,p);};
   await f.run({rpc});assert.equal(fullReads,1);assert.equal(f.record.publicationVersion,PUBLICATION_VERSION);
   await f.run({rpc});assert.equal(fullReads,1);
+});
+
+test('a conversation\'s images go in a folder named after the conversation, and the name stays put after a rename',async()=>{
+  const f=fixture({image:true});await f.run();
+  assert.equal(f.record.attachmentDir,'Attachments/Codex/Retry fixture');
+  const png=[...f.files.keys()].find(p=>p.endsWith('.png'));
+  assert.match(png,/^Attachments\/Codex\/Retry fixture\/[a-f0-9]{64}\.png$/);
+  assert.ok(f.note.text.includes(`![[${png}]]`));
+  f.rename('Renamed later');f.setRevision(2);await f.run();
+  assert.equal(f.record.attachmentDir,'Attachments/Codex/Retry fixture');
+  assert.equal([...f.files.keys()].filter(p=>p.endsWith('.png')).length,1);
+});
+
+test('an existing task-ID attachment folder is moved to the note\'s name once, keeping images whose originals are gone',async()=>{
+  const f=fixture({image:true});await f.run();
+  // Rewind to how the previous release left things: folder named by task ID.
+  const old=JSON.parse(JSON.stringify(f.saved)),record=old.threads[f.thread.id];
+  const titled=record.attachmentDir,legacy=`Attachments/Codex/${f.thread.id}`;
+  await f.vault.rename(f.files.get(titled),legacy);
+  for(const a of Object.values(record.attachments))a.path=a.path.replace(titled,legacy);
+  delete record.attachmentDir;record.publicationVersion=2;
+  f.note.text=f.note.text.replaceAll(titled+'/',legacy+'/');
+  await f.persist(old);f.setReadable(false);
+  const result=await f.run();
+  assert.equal(result.report.missingImages,0);assert.equal(result.report.copiedImages,0);
+  assert.equal(f.record.attachmentDir,'Attachments/Codex/Retry fixture');
+  assert.ok(!f.files.has(legacy));
+  const png=[...f.files.keys()].find(p=>p.endsWith('.png'));
+  assert.match(png,/^Attachments\/Codex\/Retry fixture\//);
+  assert.ok(f.note.text.includes(`![[${png}]]`));assert.ok(!f.note.text.includes(legacy));
+  assert.equal((await f.run()).report.changed,0);
+});
+
+test('a note deleted in the vault is not brought back by an upgrade re-check, only by a new message',async()=>{
+  const f=fixture();await f.run();const path=f.note.path;f.files.delete(path);
+  const old=JSON.parse(JSON.stringify(f.saved));old.threads[f.thread.id].publicationVersion=1;await f.persist(old);
+  const result=await f.run();
+  assert.equal(f.note,undefined);assert.equal(result.report.changed,0);assert.equal(result.report.errors.length,0);
+  assert.equal(f.record.publicationVersion,PUBLICATION_VERSION);assert.equal(f.record.notePath,path);
+  await f.run();assert.equal(f.note,undefined);
+  f.setRevision(2);await f.run();
+  assert.ok(f.note);assert.match(f.note.text,/RESPONSE 2/);
+});
+
+test('a note the user moved elsewhere is still found and updated in place, not duplicated',async()=>{
+  const f=fixture();await f.run();
+  await f.vault.createFolder('Elsewhere');await f.vault.rename(f.note,'Elsewhere/Moved.md');
+  const old=JSON.parse(JSON.stringify(f.saved));old.threads[f.thread.id].publicationVersion=1;await f.persist(old);
+  f.setRevision(2);await f.run();
+  assert.equal(f.note.path,'Elsewhere/Moved.md');assert.match(f.note.text,/RESPONSE 2/);
+  assert.equal([...f.files.values()].filter(x=>typeof x.text==='string'&&x.text.includes('codex_thread_id:')).length,1);
 });
 
 test('interrupted first indexing write recovers the renamed note and emits a modify event',async()=>{

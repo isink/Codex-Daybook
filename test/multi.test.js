@@ -105,7 +105,9 @@ test('two same-title tasks get separate notes, task-scoped images and their own 
   assert.equal(parseNote(await vault.read(vault.getAbstractFileByPath(a.notePath))).doc.get('daily'),'[[Daily/2026-09-14]]');
   assert.equal(parseNote(await vault.read(vault.getAbstractFileByPath(bb.notePath))).doc.get('daily'),'[[Daily/2026-09-15]]');
   assert.equal(Object.keys(allAttachments(r.state)).length,2);
-  assert.ok(Object.values(a.attachments)[0].path.includes('/a/'));assert.ok(Object.values(bb.attachments)[0].path.includes('/b/'));
+  // Same title: one folder gets the short-ID suffix, so their images never mix.
+  assert.notEqual(a.attachmentDir,bb.attachmentDir);
+  assert.ok(Object.values(a.attachments)[0].path.startsWith(a.attachmentDir+'/'));assert.ok(Object.values(bb.attachments)[0].path.startsWith(bb.attachmentDir+'/'));
   const writes=vault.writes;const again=await run(vault,b,migrateState(r.persisted));
   assert.equal(again.report.changed,0);assert.equal(again.report.copiedImages,0);assert.equal(again.saves,0);assert.equal(vault.writes,writes);
 });

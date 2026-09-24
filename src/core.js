@@ -65,7 +65,10 @@ function imageText(asset, unsupported, unavailable) {
   return asset?.unsupported ? unsupported : unavailable;
 }
 
-function renderTranscript(turns, entries, images = {},timeZone,resolveEmbed) {
+// moved: {from,to} when this task's attachment folder was renamed. Codex's own
+// replies can hard-code the old folder path; point those links at the new one.
+function renderTranscript(turns, entries, images = {},timeZone,resolveEmbed,moved) {
+  const relink=text=>moved?.from&&moved.to&&moved.from!==moved.to?text.split(`${moved.from}/`).join(`${moved.to}/`):text;
   const completed = new Map(turns.filter(t=>t.status === 'completed').map(t=>[t.id,t]));
   // Images Codex generates arrive as their own items, before the reply that
   // presents them; show them under that turn's last final answer instead.
@@ -101,13 +104,13 @@ function renderTranscript(turns, entries, images = {},timeZone,resolveEmbed) {
         return `（附件未导入：${c.type||'未知类型'}）`;
       }).join('\n\n');
     } else if (item.type === 'agentMessage' && item.phase === 'final_answer') {
-      role = 'Codex'; text = embedImageLinks(item.text,resolveEmbed);
+      role = 'Codex'; text = embedImageLinks(relink(item.text),resolveEmbed);
       if (lastAnswer.get(turnId) === item.id && generated.has(turnId)) text = [text,...generated.get(turnId)].join('\n\n');
     } else if (item.type === 'imageGeneration' && item.status === 'completed' && !lastAnswer.has(turnId) && generated.has(turnId)) {
       // No written reply in this turn to attach to: show the images on their own, once.
       role = 'Codex'; text = generated.get(turnId).join('\n\n'); generated.delete(turnId);
     } else if (item.type === 'plan') {
-      role = 'Codex · 正式计划'; text = embedImageLinks(item.text,resolveEmbed);
+      role = 'Codex · 正式计划'; text = embedImageLinks(relink(item.text),resolveEmbed);
     } else continue;
     if (text?.trim()) {
       const body=transcriptText(text.trim());
@@ -244,22 +247,26 @@ async function ensureDaily(vault, day,route={}) {
   return true;
 }
 
+// The task's note at its remembered path, or wherever the user moved it.
+async function findNote(vault,threadId,notePath) {
+  const file=notePath && vault.getAbstractFileByPath(notePath);
+  // Remembered files must never silently be replaced by another note.
+  if(file && noteThreadId(await vault.read(file))!==threadId) throw Error('原笔记任务 ID 已修改，已停止同步');
+  if(file) return file;
+  const matches=[];
+  for(const candidate of vault.getMarkdownFiles()) {
+    if(noteThreadId(await vault.read(candidate))===threadId) matches.push(candidate);
+  }
+  if(matches.length>1) throw Error('发现多篇属于本任务的笔记，请先处理重复文件');
+  return matches[0]||null;
+}
+
 async function syncToVault(vault, snapshot, {notePath=null, alive=()=>true, now=Date.now(),route={},ensureIndexed=false}={}) {
   const {thread,transcript}=snapshot;
   if(!transcript) return {changed:false,notePath,reason:'尚无已结束的对话'};
   const check=()=>{if(!alive()) throw Error('插件已停止');};
   check();
-  let file=notePath && vault.getAbstractFileByPath(notePath);
-  // Remembered files must never silently be replaced by another note.
-  if(file && noteThreadId(await vault.read(file))!==thread.id) throw Error('原笔记任务 ID 已修改，已停止同步');
-  if(!file) {
-    const matches=[];
-    for(const candidate of vault.getMarkdownFiles()) {
-      if(noteThreadId(await vault.read(candidate))===thread.id) matches.push(candidate);
-    }
-    if(matches.length>1) throw Error('发现多篇属于本任务的笔记，请先处理重复文件');
-    file=matches[0];
-  }
+  let file=await findNote(vault,thread.id,notePath);
   let previous, next, path;
   if(file) {
     previous=await vault.read(file);
@@ -301,4 +308,4 @@ async function syncToVault(vault, snapshot, {notePath=null, alive=()=>true, now=
   return {changed:!file || next!==previous || dailyCreated || ensureIndexed,notePath:path,dailyCreated};
 }
 
-module.exports={START,END,dateParts,safeTitle,cleanUserText,attachmentKey,embedImageLinks,renderTranscript,parseNote,noteThreadId,newNote,updateNote,pages,verifyThread,latestTurnSignature,peekLatestTurn,readSnapshot,ensureFolder,ensureDaily,syncToVault};
+module.exports={START,END,findNote,dateParts,safeTitle,cleanUserText,attachmentKey,embedImageLinks,renderTranscript,parseNote,noteThreadId,newNote,updateNote,pages,verifyThread,latestTurnSignature,peekLatestTurn,readSnapshot,ensureFolder,ensureDaily,syncToVault};

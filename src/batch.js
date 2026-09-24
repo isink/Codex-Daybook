@@ -1,14 +1,15 @@
-const {readSnapshot,renderTranscript,syncToVault,verifyThread,peekLatestTurn,latestTurnSignature}=require('./core');
-const {prepareAttachments}=require('./attachments');
+const {readSnapshot,renderTranscript,syncToVault,verifyThread,peekLatestTurn,latestTurnSignature,findNote}=require('./core');
+const {prepareAttachments,imageSources,chooseAttachmentDir,relocateMapping,moveLegacyDir}=require('./attachments');
 const {discoverTasks}=require('./tasks');
 const {routing,defaults}=require('./settings');
 const {CompatibilityError}=require('./errors');
 
 class StateWriteError extends Error {}
-// Bumped whenever note rendering gains content that already-settled tasks
-// should pick up (2: images Codex generated). A record below this version
-// gets exactly one full reconciliation, then settles again.
-const PUBLICATION_VERSION=2;
+// Bumped whenever already-settled tasks need one more full pass: 2 added
+// images Codex generated, 3 moves attachment folders from the task ID to the
+// conversation title. A record below this version gets exactly one full
+// reconciliation, then settles again.
+const PUBLICATION_VERSION=3;
 function sourceMessage(vault,record) {
   return record?.notePath && vault.getAbstractFileByPath(record.notePath)
     ? '源对话暂不可用，本地副本已保留' : '源对话暂不可用，尚未生成本地副本';
@@ -63,16 +64,44 @@ async function syncBatch({vault,rpc,state,persist,alive=()=>true,now=Date.now,re
     check();report.checked++;
     try {
       const route=record.routing||routing(current.settings||defaults(),snapshot.thread);
-      const assets=await prepareAttachments(vault,snapshot,record.attachments,{alive,readLocal,attachmentFolder:route.attachmentFolder});
+      // Choose the folder only once there is something to put in it, so it
+      // can be named after the note whenever the note already exists.
+      const legacyDir=`${route.attachmentFolder}/${id}`;
+      let attachmentDir=record.attachmentDir;
+      if(!attachmentDir && (Object.keys(record.attachments||{}).length || imageSources(snapshot).length)) {
+        attachmentDir=chooseAttachmentDir(vault,current.threads,id,record,snapshot.thread,route.attachmentFolder);
+      }
+      if(attachmentDir) {
+        const relocated=relocateMapping(record.attachments,legacyDir,attachmentDir);
+        if(record.attachmentDir!==attachmentDir || JSON.stringify(relocated)!==JSON.stringify(record.attachments||{})) {
+          // Record the new folder before moving files, so an interrupted move
+          // is simply finished on the next pass.
+          record={...record,attachmentDir,attachments:relocated};
+          await commit({...current,threads:{...current.threads,[id]:record}});
+        }
+        await moveLegacyDir(vault,legacyDir,attachmentDir);
+        check();
+      }
+      const turnSignature=latestTurnSignature(snapshot.turns);
+      if(record.notePath && JSON.stringify(turnSignature)===JSON.stringify(record.turnSignature) && !(await findNote(vault,id,record.notePath))) {
+        // The note was deleted in the vault and nothing new has been said
+        // since: leave it deleted. A later new message recreates it, as before.
+        if(record.publicationVersion!==PUBLICATION_VERSION || record.syncPending || record.pendingImages) {
+          record={...record,syncPending:false,pendingImages:false,publicationVersion:PUBLICATION_VERSION};
+          await commit({...current,threads:{...current.threads,[id]:record}});
+        }
+        continue;
+      }
+      const assets=await prepareAttachments(vault,snapshot,record.attachments,{alive,readLocal,folder:attachmentDir||legacyDir});
       report.images+=Object.keys(assets.images).length;report.copiedImages+=assets.copied;report.missingImages+=assets.missing;
-      const turnSignature=latestTurnSignature(snapshot.turns),pendingImages=assets.missing>0;
+      const pendingImages=assets.missing>0;
       if(!record.syncPending || JSON.stringify(record.attachments||{})!==JSON.stringify(assets.mapping)) {
         // Preserve copied images across retries, but never acknowledge a new
         // transcript until both the vault write and final state save succeed.
         record={...record,attachments:assets.mapping,syncPending:true};
         await commit({...current,threads:{...current.threads,[id]:record}});
       }
-      snapshot.transcript=renderTranscript(snapshot.turns,snapshot.entries,assets.images,route.timeZone,resolveEmbed);
+      snapshot.transcript=renderTranscript(snapshot.turns,snapshot.entries,assets.images,route.timeZone,resolveEmbed,{from:legacyDir,to:attachmentDir});
       const result=await syncToVault(vault,snapshot,{notePath:record.notePath,alive,now:now(),route,ensureIndexed:!record.notePath});
       check();
       const name=snapshot.thread.name||'Codex 对话';

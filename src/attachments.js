@@ -1,7 +1,7 @@
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
-const {ensureFolder,attachmentKey}=require('./core');
+const {ensureFolder,attachmentKey,safeTitle}=require('./core');
 
 function imageExtension(bytes) {
   if(bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'png';
@@ -31,9 +31,38 @@ function imageSources(snapshot) {
   return sources;
 }
 
-async function prepareAttachments(vault,snapshot,stored={}, {alive=()=>true,readLocal=fs.readFile,attachmentFolder='Attachments/Codex'}={}) {
+// Named once — after the note if it exists, else the conversation title — and
+// never renamed afterwards, the same rule note files follow.
+function chooseAttachmentDir(vault,threads,id,record,thread,attachmentFolder) {
+  if(record.attachmentDir)return record.attachmentDir;
+  const name=record.notePath?record.notePath.split('/').pop().replace(/\.md$/,''):safeTitle(thread.name);
+  const same=(a,b)=>a.normalize('NFC').toLowerCase()===b.normalize('NFC').toLowerCase();
+  const taken=p=>vault.getAbstractFileByPath(p)||Object.entries(threads).some(([other,t])=>other!==id&&t.attachmentDir&&same(t.attachmentDir,p));
+  const base=`${attachmentFolder}/${name}`;
+  if(!taken(base))return base;
+  const suffixed=`${base} (${id.slice(-8)})`;
+  if(!taken(suffixed))return suffixed;
+  throw Error('同名附件目录已存在，已停止复制图片');
+}
+
+// Earlier releases named the folder after the task ID. Point every cached
+// image at the new folder; the files themselves move with moveLegacyDir.
+function relocateMapping(mapping,from,to) {
+  return Object.fromEntries(Object.entries(mapping||{}).map(([key,asset])=>[key,asset?.path?.startsWith(from+'/')?{...asset,path:to+asset.path.slice(from.length)}:asset]));
+}
+
+// Moves the whole folder in one rename so images whose originals are gone
+// (temporary clipboard files, deleted desktop files) are kept. Safe to repeat.
+async function moveLegacyDir(vault,from,to) {
+  const folder=vault.getAbstractFileByPath(from);
+  if(!folder || !('children' in folder) || vault.getAbstractFileByPath(to))return false;
+  await vault.rename(folder,to);
+  return true;
+}
+
+async function prepareAttachments(vault,snapshot,stored={}, {alive=()=>true,readLocal=fs.readFile,attachmentFolder='Attachments/Codex',folder=null}={}) {
   if(!/^[a-zA-Z0-9-]+$/.test(snapshot.thread.id))throw Error('任务 ID 无效');
-  const folder=`${attachmentFolder}/${snapshot.thread.id}`;
+  folder=folder||`${attachmentFolder}/${snapshot.thread.id}`;
   const mapping={...stored}, images={}, seen=new Set();
   const check=()=>{if(!alive())throw Error('插件已停止');};
   let copied=0,missing=0,unsupported=0;
@@ -85,4 +114,4 @@ async function prepareAttachments(vault,snapshot,stored={}, {alive=()=>true,read
   }
   return {mapping,images,copied,missing,unsupported};
 }
-module.exports={prepareAttachments,imageExtension};
+module.exports={prepareAttachments,imageExtension,imageSources,chooseAttachmentDir,relocateMapping,moveLegacyDir};
