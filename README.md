@@ -4,7 +4,7 @@ Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Mar
 
 已进入 Obsidian 社区插件目录，源码见 [isink/Codex-Daybook](https://github.com/isink/Codex-Daybook)，采用 MIT 许可证。当前条目尚未经过 Obsidian 员工人工审核；Windows 实机验收仍待完成。
 
-[English guide](README.en.md) · [隐私说明](PRIVACY.md) · [变更日志](CHANGELOG.md)
+[English guide](README.en.md) · [隐私说明](PRIVACY.md) 
 
 ## 安装
 
@@ -28,7 +28,5 @@ Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Mar
 npm ci
 npm run package
 ```
-
-发布与验收流程见 [RELEASE.md](RELEASE.md)；变更历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 本项目不是 OpenAI 或 Obsidian 官方插件。
