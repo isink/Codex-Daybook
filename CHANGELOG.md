@@ -1,4 +1,4 @@
-# 未发布
+# 0.5.9 — Windows 商店版 Codex 检测
 
 - Windows：支持从 Microsoft Store 安装的 Codex Desktop。“一键扫描”和自动检测会找到商店版自带的 `codex.exe`（位于受保护、带版本号的 WindowsApps 目录），商店更新后原先保存的路径失效时也会自动找到新位置。
 

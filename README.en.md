@@ -1,4 +1,4 @@
-# Codex Daybook 0.5.8
+# Codex Daybook 0.5.9
 
 Desktop Obsidian plugin that saves completed local **Codex Desktop** conversations as Markdown notes. An optional daily track can link them into a daily Dataview trail. Not a ChatGPT history importer: it only handles local Codex Desktop main tasks, and only tasks created after you start sync are ever captured.
 

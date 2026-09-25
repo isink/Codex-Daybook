@@ -1,4 +1,4 @@
-# Codex Daybook 0.5.8
+# Codex Daybook 0.5.9
 
 Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Markdown 笔记。可选开启每日轨迹，按创建日加入 Dataview 每日轨迹。不是 ChatGPT 历史同步器：只处理本机 Codex Desktop 主任务，且只有开始同步之后新建的任务才会被采集。
 

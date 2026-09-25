@@ -2,10 +2,10 @@
 
 状态：**未验证**。macOS 上的路径单元测试不能代替 Windows 实机测试。同一安装 ZIP 供两平台使用。
 
-## 0.5.8 测试包安装
+## 0.5.9 测试包安装
 
-1. 将 `codex-daily-sync-0.5.8.zip`、`SHA256SUMS.txt`、本文及 `ACCEPTANCE.md` 复制到 Windows。
-2. 在 PowerShell 执行 `Get-FileHash .\codex-daily-sync-0.5.8.zip -Algorithm SHA256`，与校验文件中同名安装包的值核对。两平台使用相同 ZIP。
+1. 将 `codex-daily-sync-0.5.9.zip`、`SHA256SUMS.txt`、本文及 `ACCEPTANCE.md` 复制到 Windows。
+2. 在 PowerShell 执行 `Get-FileHash .\codex-daily-sync-0.5.9.zip -Algorithm SHA256`，与校验文件中同名安装包的值核对。两平台使用相同 ZIP。
 3. 创建独立空库并安装 Dataview；将 ZIP 内的 `codex-daily-sync` 文件夹放进测试库 `.obsidian/plugins/`，重载 Obsidian 后启用插件。
 4. 以 Obsidian **1.13.7** 为最低版本基线，并记录 Dataview 与 Codex CLI 版本；按以下项目及 ACCEPTANCE.md 逐项填写。
 
