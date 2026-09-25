@@ -51,23 +51,27 @@ test('Windows executable and image wrapper support spaces, drive paths, UNC and 
   for(const name of ['CON','nul.txt','COM1','LPT9.md','.env 配置说明','.hidden'])assert.ok(safeTitle(name).startsWith('_'));
   assert.equal(safeTitle('正常标题'),'正常标题');
 });
-test('Microsoft Store install: Scan finds codex.exe through the Store launch alias, then PowerShell, and survives a Store update',()=>{
-  const root='C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.917.9434.0_x64__2p2nqsd0c76g0';
-  const cli=`${root}\\app\\resources\\codex.exe`;
-  const env={LOCALAPPDATA:'D:\\Profiles\\tester\\Local',SystemRoot:'C:\\Windows',Path:'D:\\Profiles\\tester\\npm'};
-  const alias=`${env.LOCALAPPDATA}\\Microsoft\\WindowsApps\\OpenAI.Codex_2p2nqsd0c76g0\\codex-core-command-runner.exe`;
-  let asked=0;const installLocation=()=>{asked++;return root+'\r\n';};
-  // Alias target has a different file name than the alias; only its folder matters.
-  const viaAlias=codexExecutable('',{platform:'win32',env,exists:p=>p===cli,readlink:p=>{assert.equal(p,alias);return `\\\\?\\${root}\\app\\resources\\codex-command-runner.exe`;},installLocation});
-  assert.equal(viaAlias,cli);assert.equal(asked,0);
-  // Aliases unreadable from this runtime: ask for the package location instead.
-  assert.equal(codexExecutable('',{platform:'win32',env,exists:p=>p===cli,readlink:()=>{throw Error('EINVAL');},installLocation}),cli);assert.equal(asked,1);
-  // A saved path into an older, now-removed version folder finds the new one.
-  const stale='C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.900.1.0_x64__2p2nqsd0c76g0\\app\\resources\\codex.exe';
-  assert.equal(codexExecutable(stale,{platform:'win32',env,exists:p=>p===cli,readlink:()=>{throw Error('EINVAL');},installLocation}),cli);
-  // The npm CLI's .cmd shim on PATH is still not accepted, and a missing path elsewhere still errors.
-  assert.throws(()=>codexExecutable('',{platform:'win32',env,exists:()=>false,readlink:()=>{throw Error('EINVAL');},installLocation:()=>null}),/not found/);
-  assert.throws(()=>codexExecutable('D:\\gone\\codex.exe',{platform:'win32',env,exists:()=>false,readlink:()=>{throw Error('EINVAL');},installLocation}),/real Codex executable/);
+test('Windows with Store-installed Codex: use the npm CLI\'s real codex.exe; a Store path is never used; Store-only gets a clear instruction',()=>{
+  const env={APPDATA:'D:\\Profiles\\tester\\Roaming',LOCALAPPDATA:'D:\\Profiles\\tester\\Local',Path:'D:\\Profiles\\tester\\Roaming\\npm;C:\\Windows'};
+  const npmExe='D:\\Profiles\\tester\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe';
+  // A simulated directory tree, built from full file paths.
+  const tree=files=>dir=>{const kids=new Map();for(const f of files){if(!f.toLowerCase().startsWith(dir.toLowerCase()+'\\'))continue;const name=f.slice(dir.length+1).split('\\')[0];kids.set(name,f.length>dir.length+1+name.length);}return [...kids].map(([name,dirent])=>({name,isDirectory:()=>dirent}));};
+  const files=[npmExe,'D:\\Profiles\\tester\\Roaming\\npm\\codex.cmd'];
+  const exists=p=>files.includes(p);const storeDir=p=>p==='D:\\Profiles\\tester\\Local\\Microsoft\\WindowsApps\\OpenAI.Codex_2p2nqsd0c76g0';
+  const opts={platform:'win32',arch:'x64',env,exists,readdir:tree(files),isDir:storeDir};
+  assert.equal(codexExecutable('',opts),npmExe);
+  // A Store path saved by an earlier Scan cannot be started (EPERM): it is ignored.
+  const store='C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.917.9434.0_x64__2p2nqsd0c76g0\\app\\resources\\codex.exe';
+  assert.equal(codexExecutable(store,{...opts,exists:p=>p===store||exists(p)}),npmExe);
+  // The .cmd shim itself is still refused when chosen by hand.
+  assert.throws(()=>codexExecutable('D:\\Profiles\\tester\\Roaming\\npm\\codex.cmd',opts),/real Codex executable/);
+  // On ARM, prefer the ARM build when both are present.
+  const armExe='D:\\Profiles\\tester\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-arm64\\vendor\\aarch64-pc-windows-msvc\\bin\\codex.exe';
+  assert.equal(codexExecutable('',{...opts,arch:'arm64',readdir:tree([npmExe,armExe])}),armExe);
+  // Store version only, no npm CLI: say exactly what to install.
+  assert.throws(()=>codexExecutable('',{...opts,exists:()=>false,readdir:()=>[]}),/Microsoft Store version of Codex cannot be started/);
+  // Neither: the usual not-found message.
+  assert.throws(()=>codexExecutable('',{...opts,exists:()=>false,readdir:()=>[],isDir:()=>false}),/not found/);
 });
 test('legacy migration infers paths, retains mappings/cutoff/daily, never writes a note',async()=>{
   const thread={id:'fixture',name:'Example',createdAt:1700000000};

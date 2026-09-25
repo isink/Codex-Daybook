@@ -223,7 +223,7 @@ module.exports=class CodexDailySync extends Plugin {
     if(this.state.enabled)await this.save({...this.state,enabled:false});
     const generation=this.generation;
     try{
-      const executable=codexExecutable(this.state.settings.executable);
+      let executable;try{executable=codexExecutable(this.state.settings.executable);}catch(e){throw {safeMessage:e.message};}
       const client=this.createClient(executable);this.client=client;await client.start();
       const account=await client.request('account/read',{refreshToken:false});
       if(!account||!Object.hasOwn(account,'account'))throw Error('Invalid account response.');

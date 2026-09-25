@@ -1,63 +1,53 @@
 const fs=require('node:fs');
 const path=require('node:path');
-const {execFileSync}=require('node:child_process');
 
-// Microsoft Store (MSIX) install of Codex Desktop. It lives in a versioned,
-// unlistable folder under C:\Program Files\WindowsApps and is not on PATH.
-const STORE_PACKAGE='OpenAI.Codex_2p2nqsd0c76g0';
-const STORE_CLI=['app','resources','codex.exe'];
-const STORE_ALIASES=['codex-core-command-runner.exe','codex-chrome-native-host.exe'];
+// Codex Desktop from the Microsoft Store lives in a protected, versioned
+// C:\Program Files\WindowsApps\OpenAI.Codex_<version>_x64__2p2nqsd0c76g0
+// folder, and Windows refuses (EPERM) to let any other app start the
+// codex.exe inside it. The Codex CLI installed with npm reads the same Codex
+// data, so use the real codex.exe behind its codex.cmd shim instead.
+const STORE_PUBLISHER='2p2nqsd0c76g0';
+const isStorePath=p=>new RegExp(`[\\\\/]WindowsApps[\\\\/]OpenAI\\.Codex_[^\\\\/]*_${STORE_PUBLISHER}([\\\\/]|$)`,'i').test(String(p||''));
 
-function storeRoot(target) {
-  const parts=String(target||'').replace(/^\\\\\?\\/,'').split(/[\\/]+/);
-  const index=parts.findIndex(part=>/^OpenAI\.Codex_.+_2p2nqsd0c76g0$/i.test(part));
-  return index>0?parts.slice(0,index+1).join('\\'):null;
+function listDir(dir){try{return fs.readdirSync(dir,{withFileTypes:true});}catch{return [];}}
+function isDirectory(p){try{return fs.statSync(p).isDirectory();}catch{return false;}}
+
+// npm's global prefix is wherever codex.cmd sits. The native binary ships in
+// a platform-specific package somewhere below @openai\codex, at a depth that
+// has changed between releases, so search that one package folder.
+function npmCodexExecutable(prefixes,{readdir,arch}) {
+  const found=[];
+  const walk=(dir,depth)=>{
+    if(depth>7)return;
+    for(const entry of readdir(dir)){
+      const full=path.win32.join(dir,entry.name);
+      if(entry.isDirectory())walk(full,depth+1);
+      else if(entry.name.toLowerCase()==='codex.exe')found.push(full);
+    }
+  };
+  for(const prefix of prefixes)walk(path.win32.join(prefix,'node_modules','@openai','codex'),0);
+  const target=arch==='arm64'?'aarch64':'x86_64';
+  return found.find(p=>p.includes(target))||found[0]||null;
 }
 
-// The Store's launch aliases point into the current version's folder, so
-// following one finds it without hard-coding a version that changes on every
-// update. Asking PowerShell for the package location is the fallback.
-function storeExecutable(env,{exists,readlink,installLocation}) {
-  const roots=[];
-  if(env.LOCALAPPDATA)for(const alias of STORE_ALIASES){
-    try{roots.push(storeRoot(readlink(path.win32.join(env.LOCALAPPDATA,'Microsoft','WindowsApps',STORE_PACKAGE,alias))));}catch{}
-  }
-  for(const root of roots){const candidate=root&&path.win32.join(root,...STORE_CLI);if(candidate&&exists(candidate))return candidate;}
-  try{
-    const root=String(installLocation(env)||'').split(/\r?\n/).map(line=>line.trim()).find(Boolean);
-    const candidate=root&&path.win32.join(root,...STORE_CLI);
-    if(candidate&&exists(candidate))return candidate;
-  }catch{}
-  return null;
-}
-
-function packageInstallLocation(env) {
-  if(!env.SystemRoot)return null;
-  const powershell=path.win32.join(env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');
-  const output=execFileSync(powershell,['-NoProfile','-NonInteractive','-Command','(Get-AppxPackage -Name OpenAI.Codex).InstallLocation'],{encoding:'utf8',timeout:8000,windowsHide:true});
-  return output;
-}
-
-function codexExecutable(explicit='',{platform=process.platform,env=process.env,exists=p=>{try{return fs.statSync(p).isFile();}catch{return false;}},readlink=fs.readlinkSync,installLocation=packageInstallLocation}={}){
+function codexExecutable(explicit='',{platform=process.platform,arch=process.arch,env=process.env,exists=p=>{try{return fs.statSync(p).isFile();}catch{return false;}},readdir=listDir,isDir=isDirectory}={}){
   if(!['darwin','win32'].includes(platform))throw Error('This plugin only supports macOS and Windows.');
   const paths=platform==='win32'?path.win32:path.posix;
-  if(explicit){
-    const valid=paths.isAbsolute(explicit)&&exists(explicit)&&(platform!=='win32'||/\.exe$/i.test(explicit));
-    if(valid)return explicit;
-    // A Store update replaces the versioned folder a saved path points into;
-    // find the new one instead of failing.
-    if(!(platform==='win32'&&storeRoot(explicit)))throw Error('Choose a real Codex executable — on Windows it must be a .exe.');
+  // A saved path into the Store package can never be started; look again.
+  if(explicit && !(platform==='win32'&&isStorePath(explicit))){
+    if(!paths.isAbsolute(explicit)||!exists(explicit)||(platform==='win32'&&!/\.exe$/i.test(explicit)))throw Error('Choose a real Codex executable — on Windows it must be a .exe.');
+    return explicit;
   }
   const standards=platform==='darwin'?['/Applications/ChatGPT.app/Contents/Resources/codex','/Applications/Codex.app/Contents/Resources/codex','/opt/homebrew/bin/codex','/usr/local/bin/codex']:[];
-  const standard=standards.find(exists);
-  if(standard)return standard;
+  const searchPath=(env.PATH||env.Path||env.path||'').split(platform==='win32'?';':':').filter(p=>paths.isAbsolute(p));
+  const match=[...standards,...searchPath.map(p=>paths.join(p,platform==='win32'?'codex.exe':'codex'))].find(exists);
+  if(match)return match;
   if(platform==='win32'){
-    const store=storeExecutable(env,{exists,readlink,installLocation});
-    if(store)return store;
+    const prefixes=[...new Set([...searchPath.filter(p=>exists(path.win32.join(p,'codex.cmd'))),...(env.APPDATA?[path.win32.join(env.APPDATA,'npm')]:[])])];
+    const npm=npmCodexExecutable(prefixes,{readdir,arch});
+    if(npm)return npm;
+    if(env.LOCALAPPDATA&&isDir(path.win32.join(env.LOCALAPPDATA,'Microsoft','WindowsApps',`OpenAI.Codex_${STORE_PUBLISHER}`)))throw Error('The Microsoft Store version of Codex cannot be started by other apps. Install the Codex command-line tool (npm install -g @openai/codex), then click Scan again.');
   }
-  const searchPath=env.PATH||env.Path||env.path||'';
-  const match=searchPath.split(platform==='win32'?';':':').filter(p=>paths.isAbsolute(p)).map(p=>paths.join(p,platform==='win32'?'codex.exe':'codex')).find(exists);
-  if(!match)throw Error('Codex executable not found — choose it in settings. Nothing is installed or added to PATH automatically.');
-  return match;
+  throw Error('Codex executable not found — choose it in settings. Nothing is installed or added to PATH automatically.');
 }
-module.exports={codexExecutable,storeRoot};
+module.exports={codexExecutable,isStorePath};

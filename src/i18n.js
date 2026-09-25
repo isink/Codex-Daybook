@@ -103,6 +103,7 @@ const zh={
   "Confirm outside-vault access and pass the connection check first.": "请先确认库外访问权限，并通过连接检查。",
   "This plugin only supports macOS and Windows.": "此插件仅支持 macOS 和 Windows。",
   "Choose a real Codex executable — on Windows it must be a .exe.": "请选择真实的 Codex 可执行文件，Windows 下必须是 .exe 文件。",
+  "The Microsoft Store version of Codex cannot be started by other apps. Install the Codex command-line tool (npm install -g @openai/codex), then click Scan again.": "检测到商店版 Codex，但 Windows 不允许其他程序直接启动它。请安装 Codex 命令行工具（npm install -g @openai/codex），然后再点“一键扫描”。",
   "Codex executable not found — choose it in settings. Nothing is installed or added to PATH automatically.": "未找到 Codex 可执行文件，请在设置中选择。插件不会自动安装程序或修改 PATH。",
   "The pagination interface format is incompatible.": "分页接口格式不兼容。",
   "Sign in to Codex with a ChatGPT account first.": "请先使用 ChatGPT 账号登录 Codex。",
