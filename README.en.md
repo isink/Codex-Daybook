@@ -1,4 +1,4 @@
-# Codex Daybook 0.5.9
+# Codex Daybook 0.5.10
 
 Desktop Obsidian plugin that saves completed local **Codex Desktop** conversations as Markdown notes. An optional daily track can link them into a daily Dataview trail. Not a ChatGPT history importer: it only handles local Codex Desktop main tasks, and only tasks created after you start sync are ever captured.
 
@@ -9,6 +9,8 @@ Available in the Obsidian Community plugin directory. Source is at [isink/Codex-
 ## Setup
 
 Requires Obsidian 1.13.7+ and a local Codex Desktop installation. Dataview is only needed if you turn on the optional daily track feature.
+
+On Windows, Codex Desktop from the Microsoft Store does not let other apps start its bundled Codex, so also install the Codex command-line tool: `npm install -g @openai/codex`. It reads the same conversation data as the desktop app.
 
 1. Extract the installation ZIP into your vault's `.obsidian/plugins/`, keeping the `codex-daily-sync` folder.
 2. Enable this plugin in Obsidian's community plugins settings (also enable Dataview if you plan to use daily track).
@@ -28,7 +30,5 @@ Only completed-turn user messages, final answers, and formal plans are exported;
 npm ci
 npm run package
 ```
-
-See [RELEASE.md](RELEASE.md) for the release/acceptance process and [CHANGELOG.md](CHANGELOG.md) for version history.
 
 This project is not an official OpenAI or Obsidian plugin.

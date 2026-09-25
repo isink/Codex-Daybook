@@ -1,3 +1,8 @@
+# 0.5.10 — Windows 改用 npm 版 Codex 命令行
+
+- 修复：0.5.9 在 Windows 上能扫描到商店版 Codex 自带的 `codex.exe`，但 Windows 不允许其他程序启动商店应用里的程序，登录和连接会失败。现在改为使用 npm 安装的 Codex 命令行（`npm install -g @openai/codex`）背后真正的 `codex.exe`，它和桌面版读取同一份对话数据。
+- 之前扫描保存下来的商店版路径会被自动忽略，改用 npm 版；只装了商店版时，扫描和登录会直接提示需要安装 Codex 命令行，不再只显示“无法开始登录”。
+
 # 0.5.9 — Windows 商店版 Codex 检测
 
 - Windows：支持从 Microsoft Store 安装的 Codex Desktop。“一键扫描”和自动检测会找到商店版自带的 `codex.exe`（位于受保护、带版本号的 WindowsApps 目录），商店更新后原先保存的路径失效时也会自动找到新位置。

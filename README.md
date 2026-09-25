@@ -1,4 +1,4 @@
-# Codex Daybook 0.5.9
+# Codex Daybook 0.5.10
 
 Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Markdown 笔记。可选开启每日轨迹，按创建日加入 Dataview 每日轨迹。不是 ChatGPT 历史同步器：只处理本机 Codex Desktop 主任务，且只有开始同步之后新建的任务才会被采集。
 
@@ -9,6 +9,8 @@ Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Mar
 ## 安装
 
 需要 Obsidian 1.13.7 及以上版本、本机安装的 Codex Desktop；只有开启每日轨迹功能时才需要 Dataview 插件。
+
+Windows 上从 Microsoft Store 安装的 Codex Desktop 不允许其他程序启动它自带的 Codex，需另外安装 Codex 命令行工具：`npm install -g @openai/codex`。它和桌面版读取同一份对话数据。
 
 1. 解压安装 ZIP，将其中 `codex-daily-sync` 文件夹放入库的 `.obsidian/plugins/`。
 2. 在 Obsidian 的社区插件设置中启用 Codex Daybook（若计划使用每日轨迹，也一并启用 Dataview）。
