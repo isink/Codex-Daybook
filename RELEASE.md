@@ -1,6 +1,6 @@
 # Codex Daybook 0.5.8 发布流程
 
-此版本采用 MIT，插件 ID 固定为 codex-daily-sync。源码仓库为 [isink/obsidian-codex-daily-sync](https://github.com/isink/obsidian-codex-daily-sync)。插件已经进入 Obsidian 社区目录；0.5.8 通过同一条目分发，人工审核状态和实机验收边界见 VALIDATION.md。
+此版本采用 MIT，插件 ID 固定为 codex-daily-sync。源码仓库为 [isink/Codex-Daybook](https://github.com/isink/Codex-Daybook)。插件已经进入 Obsidian 社区目录；0.5.8 通过同一条目分发，人工审核状态和实机验收边界见 VALIDATION.md。
 
 ## 本地检查
 

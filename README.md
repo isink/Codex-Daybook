@@ -2,7 +2,7 @@
 
 Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Markdown 笔记。可选开启每日轨迹，按创建日加入 Dataview 每日轨迹。不是 ChatGPT 历史同步器：只处理本机 Codex Desktop 主任务，且只有开始同步之后新建的任务才会被采集。
 
-已进入 Obsidian 社区插件目录，源码见 [isink/obsidian-codex-daily-sync](https://github.com/isink/obsidian-codex-daily-sync)，采用 MIT 许可证。当前条目尚未经过 Obsidian 员工人工审核；Windows 实机验收仍待完成。
+已进入 Obsidian 社区插件目录，源码见 [isink/Codex-Daybook](https://github.com/isink/Codex-Daybook)，采用 MIT 许可证。当前条目尚未经过 Obsidian 员工人工审核；Windows 实机验收仍待完成。
 
 [English guide](README.en.md) · [隐私说明](PRIVACY.md) · [变更日志](CHANGELOG.md)
 
