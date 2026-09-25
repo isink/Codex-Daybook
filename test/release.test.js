@@ -51,6 +51,24 @@ test('Windows executable and image wrapper support spaces, drive paths, UNC and 
   for(const name of ['CON','nul.txt','COM1','LPT9.md','.env 配置说明','.hidden'])assert.ok(safeTitle(name).startsWith('_'));
   assert.equal(safeTitle('正常标题'),'正常标题');
 });
+test('Microsoft Store install: Scan finds codex.exe through the Store launch alias, then PowerShell, and survives a Store update',()=>{
+  const root='C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.917.9434.0_x64__2p2nqsd0c76g0';
+  const cli=`${root}\\app\\resources\\codex.exe`;
+  const env={LOCALAPPDATA:'D:\\Profiles\\tester\\Local',SystemRoot:'C:\\Windows',Path:'D:\\Profiles\\tester\\npm'};
+  const alias=`${env.LOCALAPPDATA}\\Microsoft\\WindowsApps\\OpenAI.Codex_2p2nqsd0c76g0\\codex-core-command-runner.exe`;
+  let asked=0;const installLocation=()=>{asked++;return root+'\r\n';};
+  // Alias target has a different file name than the alias; only its folder matters.
+  const viaAlias=codexExecutable('',{platform:'win32',env,exists:p=>p===cli,readlink:p=>{assert.equal(p,alias);return `\\\\?\\${root}\\app\\resources\\codex-command-runner.exe`;},installLocation});
+  assert.equal(viaAlias,cli);assert.equal(asked,0);
+  // Aliases unreadable from this runtime: ask for the package location instead.
+  assert.equal(codexExecutable('',{platform:'win32',env,exists:p=>p===cli,readlink:()=>{throw Error('EINVAL');},installLocation}),cli);assert.equal(asked,1);
+  // A saved path into an older, now-removed version folder finds the new one.
+  const stale='C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.900.1.0_x64__2p2nqsd0c76g0\\app\\resources\\codex.exe';
+  assert.equal(codexExecutable(stale,{platform:'win32',env,exists:p=>p===cli,readlink:()=>{throw Error('EINVAL');},installLocation}),cli);
+  // The npm CLI's .cmd shim on PATH is still not accepted, and a missing path elsewhere still errors.
+  assert.throws(()=>codexExecutable('',{platform:'win32',env,exists:()=>false,readlink:()=>{throw Error('EINVAL');},installLocation:()=>null}),/not found/);
+  assert.throws(()=>codexExecutable('D:\\gone\\codex.exe',{platform:'win32',env,exists:()=>false,readlink:()=>{throw Error('EINVAL');},installLocation}),/real Codex executable/);
+});
 test('legacy migration infers paths, retains mappings/cutoff/daily, never writes a note',async()=>{
   const thread={id:'fixture',name:'Example',createdAt:1700000000};
   const original=newNote(thread,'Body',1800000000,{dailyFolder:'Journal',timeZone:'America/New_York'});
