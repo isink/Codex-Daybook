@@ -1,42 +1,137 @@
-# Codex Daybook 0.5.12
+# Codex Daybook
 
-0.5.12 adds local WorkBuddy conversation import, including images attached to questions, and includes the 0.5.11 saving-quality fixes.
+[![Obsidian downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22codex-daily-sync%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=codex-daily-sync)
+[![Latest release](https://img.shields.io/github/v/release/isink/Codex-Daybook?label=release&sort=semver)](https://github.com/isink/Codex-Daybook/releases/latest)
+[![License](https://img.shields.io/github/license/isink/Codex-Daybook)](LICENSE)
+![Desktop only](https://img.shields.io/badge/platform-desktop-lightgrey)
 
-Desktop Obsidian plugin that saves completed local **Codex Desktop** conversations as Markdown notes, with optional import of local **WorkBuddy** conversations. An optional daily track can link them into a daily Dataview trail. It is not a ChatGPT history importer: Codex sync handles local Desktop main tasks, and only tasks created after you start sync are captured.
+**Turn your local AI conversations into Obsidian notes, automatically.** Every Codex Desktop task and every WorkBuddy conversation becomes a searchable, linkable Markdown note that stays in your vault.
 
-Available in the Obsidian Community plugin directory. Source is at [isink/Codex-Daybook](https://github.com/isink/Codex-Daybook), licensed under MIT. The listing has not been manually reviewed by Obsidian staff, and Windows hardware validation is still pending.
+![Codex conversations next to the synced Obsidian notes](https://raw.githubusercontent.com/isink/Codex-Daybook/main/assets/codex-vs-obsidian.png)
 
-[Chinese guide](README.md) · [privacy](PRIVACY.md) · [changelog](CHANGELOG.md)
+[Quick start](#quick-start) · [What a note looks like](#what-a-note-looks-like) · [WorkBuddy](#workbuddy-conversations-experimental) · [FAQ](#faq) · [中文说明](README.md) · [Privacy](PRIVACY.md) · [Changelog](CHANGELOG.md)
 
-## Setup
+---
 
-Requires Obsidian 1.13.7+ and a local Codex Desktop installation. Dataview is only needed if you turn on the optional daily track feature.
+## Why
 
-On Windows, Codex Desktop from the Microsoft Store does not let other apps start its bundled Codex, so also install the Codex command-line tool: `npm install -g @openai/codex`. It reads the same conversation data as the desktop app.
+Plans, debugging conclusions and drafts you work out with an AI get buried under the next conversation. Codex Daybook quietly files them into your knowledge base:
 
-1. Extract the installation ZIP into your vault's `.obsidian/plugins/`, keeping the `codex-daily-sync` folder.
-2. Enable this plugin in Obsidian's community plugins settings (also enable Dataview if you plan to use daily track).
-3. The settings panel has three tabs: **Basic settings** (notes folder, attachments folder, Codex executable — auto-detected by default with a one-click Scan — time zone, and check interval), **Daily track**, and **WorkBuddy**. Daily track and WorkBuddy are off by default.
-4. Acknowledge outside-vault access, click **Log in to Codex** to sign in with ChatGPT (Codex's official browser sign-in; passwords and tokens never pass through the plugin or get written to the vault), then **Check connection** to verify the interface. If no verifiable main task exists yet, finish a test task in Codex first.
-5. Once the check passes, click **Start sync**. This fixes the sync starting point — only Codex main tasks created afterward are captured.
+- **Automatic archive**: one note per task, updated incrementally as new replies arrive. No copy and paste.
+- **Only what matters**: your questions, final answers and formal plans. Reasoning, tool calls, system messages and unfinished turns are left out.
+- **Images included**: local images from the conversation are copied into your attachments folder, deduplicated by content, and shown inline.
+- **Your notes are safe**: sync only touches the managed region of each note. Text and properties you add outside it are kept.
+- **Daily notes**: optionally link each task into a Dataview daily track by its creation date.
+- **Fully local**: the plugin itself sends no network requests, uploads nothing and collects no telemetry.
 
-If auto-detection of the Codex executable fails, select it manually — only choose an executable you trust, since it runs with your account's permissions. The interface supports Simplified Chinese and English, switchable from Language in settings; this only changes the interface text, never synced note content.
+## Quick start
+
+**Requires** Obsidian 1.13.7+ (desktop only) and a local Codex Desktop installation. [Dataview](https://obsidian.md/plugins?id=dataview) is only needed for the optional daily track.
+
+1. In Obsidian, open **Settings → Community plugins → Browse**, search for **Codex Daybook**, then install and enable it.
+2. In the plugin settings, pick your notes and attachments folders under **Basic settings**. The Codex executable is detected automatically.
+3. Allow access outside the vault, click **Sign in to Codex** to finish the ChatGPT sign-in in your browser, then click **Check connection**.
+4. Once the check passes, click **Start sync**. Codex tasks created from now on become notes automatically.
+
+> **Only tasks created after you click Start sync are saved.** This is deliberate, so hundreds of old conversations don't flood your vault. The connection check needs at least one existing task; if you have none, finish a quick one in Codex first.
+
+<details>
+<summary>Manual install / Windows notes</summary>
+
+- **Manual install**: download `codex-daily-sync-<version>.zip` from the [latest release](https://github.com/isink/Codex-Daybook/releases/latest), put the `codex-daily-sync` folder into your vault's `.obsidian/plugins/`, then enable it under Community plugins.
+- **Windows**: Codex Desktop from the Microsoft Store does not let other programs start its bundled Codex. Install the CLI as well: `npm install -g @openai/codex`. It reads the same conversation data as the desktop app.
+- **Detection fails**: scan for or choose the Codex executable in settings. Only choose a program you trust; it runs with your permissions.
+
+</details>
+
+## What a note looks like
+
+Each note carries properties (handy for Dataview) and a question-and-answer transcript in callouts:
+
+```markdown
+---
+title: Add a chart to the weekly report
+type: codex-conversation
+created_at: 2026-11-06T10:46:53+08:00
+daily: "[[Daily/2026-11-06]]"
+---
+
+<!-- codex-sync:start -->
+> [!codex-question] Me · 2026-11-06 10:46
+> Can the weekly report script also draw a bar chart of this week's commits?
+
+> [!codex-answer] Codex · 2026-11-06 10:49
+
+Sure. I added `plot_commits()` to `report.py`…
+<!-- codex-sync:end -->
+
+Anything below is your own; sync never touches it.
+```
 
 ## What gets synced
 
-Only completed-turn user messages, final answers, and formal plans are exported. If a completed turn has no explicitly marked final answer, the last nonempty assistant message with no phase is retained as a compatibility answer; tool calls, reasoning, system messages, and in-progress or failed turns are never exported. Local PNG/JPEG/GIF/WebP images attached by the user or produced by Codex image generation are copied into the vault and deduplicated by content; remote images are never downloaded. Each task freezes its own folders, time zone, and creation day, so later setting changes don't affect existing notes. Settled, unchanged conversations never rewrite notes; personal text outside the synced content is preserved. Archiving or deleting the source conversation never automatically removes local notes, images, or daily links. Upgrading to 0.5.11 performs one full reconciliation of enrolled conversations to recover previously omitted answers. Image-link conversion and attachment-path relocation preserve fenced and inline code examples.
+| Saved to your note | Never saved |
+|---|---|
+| Your questions | Reasoning |
+| Final answers and formal plans | Tool calls and command output |
+| Local images (PNG / JPEG / GIF / WebP) | System messages, internal context |
+| Title, creation time and other properties | In-progress or failed turns, remote images |
 
-## Local WorkBuddy conversations (experimental)
+- Each task keeps its own folder, time zone and creation day; changing settings later doesn't move old notes.
+- Unchanged conversations are not rewritten.
+- Deleting or archiving a source conversation does **not** delete local notes, images or daily links.
 
-In the **WorkBuddy** tab, allow local data access, click **Check local data**, then **Start WorkBuddy sync**. The default source is `~/.workbuddy/projects`; enter an absolute path only if WorkBuddy stores its data elsewhere. Notes go to `WorkBuddy Conversations` in the vault by default. WorkBuddy and Codex sync can run independently. Checking local data does not pause an active sync. The first run imports existing local conversations; subsequent checks use the interval in Basic settings.
+## WorkBuddy conversations (experimental)
 
-This importer was developed and verified against local ordinary-task JSONL files from WorkBuddy 5.6.2 on macOS, and rechecked on 5.7.7. It needs no WorkBuddy account token or cloud API. It saves only visible user questions and completed replies, excluding private context, reasoning, tool events, and unfinished turns. Images attached to a question are copied into the vault under `Attachments/WorkBuddy/<note name>/` (configurable in the WorkBuddy tab), deduplicated by content and shown inline; only WorkBuddy's own copies under `~/.workbuddy/blobs` are read, and a missing original keeps a placeholder with its file name. Other attachments get a not-imported placeholder; cloud-only tasks and other WorkBuddy product variants are unsupported. The local format has no stability guarantee: an incompatible conversation is skipped while existing notes remain. Personal metadata and text outside the sync markers are preserved, and pausing sync keeps local notes.
+On the **WorkBuddy** tab, allow local data access, click **Check local data**, then **Start WorkBuddy sync**.
+
+- Reads conversations under `~/.workbuddy/projects` (or another absolute path you set). Notes go to `WorkBuddy Conversations/` by default.
+- Images in your questions are copied to `Attachments/WorkBuddy/<note>/` (configurable) and shown inline.
+- No WorkBuddy token and no WorkBuddy cloud API.
+- Off by default and independent of Codex sync. The first run imports your existing local conversations.
+- Verified on WorkBuddy 5.6.2 and 5.7.7 for macOS. Cloud-only tasks are not supported. WorkBuddy's local format is not guaranteed to be stable; if a conversation can't be read, only that conversation stops importing and existing notes stay untouched.
+
+## Privacy
+
+- Sign-in uses Codex's official browser flow. The plugin **never sees your password or tokens**.
+- The plugin sends no HTTP requests, uploads no conversations, collects no telemetry and installs no dependencies.
+- Codex itself may contact OpenAI according to its own configuration; whether your vault is uploaded depends on your own sync tools.
+- The plugin's `data.json` contains task IDs and note paths. Treat it as personal data.
+
+Full details: [PRIVACY.md](PRIVACY.md).
+
+## FAQ
+
+**Can it import my ChatGPT web history?**
+No. It handles local Codex Desktop main tasks and, optionally, local WorkBuddy conversations.
+
+**Why weren't my older tasks synced?**
+Only Codex tasks created after you click Start sync are saved. WorkBuddy is different: its first run imports existing local conversations.
+
+**Will sync overwrite what I write in a note?**
+No. Only the managed region is updated. Your text and properties outside it are kept.
+
+**Which languages does the interface support?**
+English and Simplified Chinese. Switch under Language in settings; it only affects the interface.
+
+## Compatibility
+
+| | Status |
+|---|---|
+| Obsidian | 1.13.7+, desktop only |
+| macOS | Verified |
+| Windows | Supported; hardware validation in progress |
+| WorkBuddy | macOS 5.6.2 and 5.7.7 verified |
 
 ## Development
 
 ```sh
 npm ci
-npm run package
+npm run package   # lint, test, build and run the pre-release privacy scan
 ```
 
-This project is not an official OpenAI or Obsidian plugin.
+Bug reports and ideas are welcome in [Issues](https://github.com/isink/Codex-Daybook/issues).
+
+---
+
+MIT License. Not an official OpenAI, WorkBuddy or Obsidian plugin.

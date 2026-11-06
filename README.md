@@ -1,42 +1,137 @@
-# Codex Daybook 0.5.12
+# Codex Daybook
 
-0.5.12 新增 WorkBuddy 本地对话导入（含提问中的图片），并包含 0.5.11 的对话保存质量修复。
+[![Obsidian 下载量](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22codex-daily-sync%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=codex-daily-sync)
+[![最新版本](https://img.shields.io/github/v/release/isink/Codex-Daybook?label=release&sort=semver)](https://github.com/isink/Codex-Daybook/releases/latest)
+[![许可证](https://img.shields.io/github/license/isink/Codex-Daybook)](LICENSE)
+![桌面端](https://img.shields.io/badge/platform-desktop-lightgrey)
 
-Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Markdown 笔记，并可选导入本机 **WorkBuddy** 对话。可选开启每日轨迹，按创建日加入 Dataview 每日轨迹。不是 ChatGPT 历史同步器：Codex 只处理本机 Desktop 主任务，且只有开始同步之后新建的任务才会被采集。
+**把本机 AI 对话自动变成 Obsidian 笔记。** 每个 Codex Desktop 任务、每段 WorkBuddy 对话，都会成为一篇可搜索、可链接、能长期保存的 Markdown 笔记。
 
-已进入 Obsidian 社区插件目录，源码见 [isink/Codex-Daybook](https://github.com/isink/Codex-Daybook)，采用 MIT 许可证。当前条目尚未经过 Obsidian 员工人工审核；Windows 实机验收仍待完成。
+![Codex 对话与 Obsidian 笔记同步效果对比](https://raw.githubusercontent.com/isink/Codex-Daybook/main/assets/codex-vs-obsidian.png)
 
-[English guide](README.en.md) · [隐私说明](PRIVACY.md) 
+[快速开始](#快速开始) · [笔记长什么样](#笔记长什么样) · [WorkBuddy](#workbuddy-对话实验性) · [常见问题](#常见问题) · [English](README.en.md) · [隐私说明](PRIVACY.md) · [更新记录](CHANGELOG.md)
 
-## 安装
+---
 
-需要 Obsidian 1.13.7 及以上版本、本机安装的 Codex Desktop；只有开启每日轨迹功能时才需要 Dataview 插件。
+## 为什么用它
 
-Windows 上从 Microsoft Store 安装的 Codex Desktop 不允许其他程序启动它自带的 Codex，需另外安装 Codex 命令行工具：`npm install -g @openai/codex`。它和桌面版读取同一份对话数据。
+和 AI 聊出来的方案、排查结论、写好的段落，很快就会被新对话淹没。Codex Daybook 在后台把它们收进你的知识库：
 
-1. 解压安装 ZIP，将其中 `codex-daily-sync` 文件夹放入库的 `.obsidian/plugins/`。
-2. 在 Obsidian 的社区插件设置中启用 Codex Daybook（若计划使用每日轨迹，也一并启用 Dataview）。
-3. 设置面板分三个标签页：**基础设置**（笔记目录、附件目录、Codex 可执行文件——默认自动检测，也可一键扫描——时区、检查间隔）、**每日轨迹**和 **WorkBuddy**。每日轨迹和 WorkBuddy 均默认关闭。
-4. 确认允许库外访问，点击“登录 Codex”完成 ChatGPT 登录（使用 Codex 官方浏览器授权，密码和登录令牌不经过插件、不写入库），再点击“检查连接”验证接口。没有可验证的主任务时，请先在 Codex 完成一个测试任务。
-5. 检查通过后点击“开始同步”，此时固定同步起点；只有此后新建的 Codex 主任务会被采集。
+- **自动归档**：一个任务一篇笔记，有新回复就增量更新，不用手动复制粘贴。
+- **只留有用的**：保存你的提问、正式答复和正式计划；推理过程、工具调用、系统消息和没完成的轮次一律不写。
+- **图片一起收**：对话里的本地图片复制进库内附件目录，按内容去重，直接显示在笔记里。
+- **你的批注不会丢**：同步只改笔记里的同步区域，你在区域外写的文字和加的属性都会保留。
+- **接上每日笔记**：可选按创建日把任务链接进 Dataview 每日轨迹，回顾一天做了什么。
+- **完全本地**：插件自己不发任何网络请求、不上传对话、不收集遥测。
 
-若 Codex 可执行文件自动检测失败，可手动选择；请只选择可信的 Codex 程序，它将以你的权限运行。界面支持简体中文与 English，可在设置的“语言”中切换，只影响界面文字，不影响已同步的笔记内容。
+## 快速开始
 
-## 同步范围
+**要求**：Obsidian 1.13.7 及以上（仅桌面端）、本机安装的 Codex Desktop。只有开启每日轨迹时才需要 [Dataview](https://obsidian.md/plugins?id=dataview)。
 
-只导出已完成轮次的用户消息、正式答复和正式计划；若该轮没有明确标记的正式答复，兼容保存最后一条非空且未标记阶段的助手消息。工具调用、推理过程、系统消息，以及进行中或失败的轮次不会被导出。用户附带及 Codex 图像工具生成的本地 PNG/JPEG/GIF/WebP 图片会复制进库内并按内容去重；远程图片不会下载。每个任务固定自己的目录、时区和创建日，之后改设置不影响旧笔记。已同步且无变化的对话不会重写笔记；对话内容以外的个人文字和自定义属性会保留。删除或归档源对话不会自动删除本地笔记、图片或每日链接。升级到 0.5.11 后会对已登记的对话做一次完整核对，补上旧版可能漏掉的答复；代码块和行内代码中的图片链接及路径示例保留原文。
+1. 在 Obsidian 打开 **设置 → 第三方插件 → 浏览**，搜索 **Codex Daybook**，安装并启用。
+2. 打开插件设置，在 **基础设置** 里选好笔记目录和附件目录。Codex 程序位置默认自动检测。
+3. 允许库外访问，点 **登录 Codex**，在浏览器完成 ChatGPT 登录，再点 **检查连接**。
+4. 检查通过后点 **开始同步**。从这一刻起新建的 Codex 任务会自动变成笔记。
 
-## WorkBuddy 本地对话（实验性）
+> **只会同步「开始同步」之后新建的任务。** 这是有意的设计，避免一次把几百个历史对话塞进库里。连接检查需要至少一个已有任务，没有的话先在 Codex 里随便完成一个。
 
-在 **WorkBuddy** 标签页允许读取本地数据，点击“检查本地数据”，通过后点击“开始 WorkBuddy 同步”。默认读取当前用户的 `~/.workbuddy/projects`；只在数据存于其他位置时填写绝对路径。笔记默认写入库内 `WorkBuddy Conversations`。WorkBuddy 与 Codex 的开关相互独立；点击检查不会暂停同步。首次启动会导入已有的本地对话，之后按基础设置中的间隔检查更新。
+<details>
+<summary>手动安装 / Windows 说明</summary>
 
-此功能按 macOS 版 WorkBuddy 5.6.2 的本地普通任务文件开发，并在 5.7.7 上复核，使用本地 JSONL 文件，不要求 WorkBuddy 登录令牌，也不会调用 WorkBuddy 云端接口。只写入界面可见的用户提问及已完成的回答；私有上下文、推理、工具事件和未完成轮次不写入笔记。提问中附带的图片会复制进库内 `Attachments/WorkBuddy/<笔记名>/`（可在 WorkBuddy 标签页修改），按内容去重并直接显示在提问里；只读取 WorkBuddy 自己保存在 `~/.workbuddy/blobs` 的原图，原图不存在时显示带文件名的未导入提示；其他附件仅显示未导入提示；纯云端任务以及其他 WorkBuddy 产品形态尚不支持。文件格式未公开保证稳定性：格式不兼容时停止导入该对话，保留已有笔记。用户手动增加的笔记属性和同步区域外文字会保留；暂停同步不会删除笔记。
+- **手动安装**：从 [最新 Release](https://github.com/isink/Codex-Daybook/releases/latest) 下载 `codex-daily-sync-<版本>.zip`，把里面的 `codex-daily-sync` 文件夹放进库的 `.obsidian/plugins/`，然后在第三方插件里启用。
+- **Windows**：从 Microsoft Store 安装的 Codex Desktop 不允许其他程序启动它自带的 Codex，需要另装命令行版：`npm install -g @openai/codex`。它和桌面版读同一份对话数据。
+- **自动检测失败**：可以在设置里一键扫描或手动选择 Codex 程序。只选你信任的程序，它会以你的权限运行。
+
+</details>
+
+## 笔记长什么样
+
+每篇笔记带有属性（方便 Dataview 查询），正文是一问一答的标注块：
+
+```markdown
+---
+title: 给周报加一个统计图
+type: codex-conversation
+created_at: 2026-11-06T10:46:53+08:00
+daily: "[[Daily/2026-11-06]]"
+---
+
+<!-- codex-sync:start -->
+> [!codex-question] 我 · 2026-11-06 10:46
+> 周报脚本能不能顺便画一张本周提交数的柱状图？
+
+> [!codex-answer] Codex · 2026-11-06 10:49
+
+可以。我在 `report.py` 里加了 `plot_commits()`……
+<!-- codex-sync:end -->
+
+这里往下是你自己的批注，同步不会动它。
+```
+
+## 同步什么，不同步什么
+
+| 会写进笔记 | 不会写进笔记 |
+|---|---|
+| 你的提问 | 推理过程 / 思考内容 |
+| 正式答复、正式计划 | 工具调用和命令输出 |
+| 对话中的本地图片（PNG / JPEG / GIF / WebP） | 系统消息、内部上下文 |
+| 任务标题、创建时间等属性 | 进行中或失败的轮次、远程图片 |
+
+- 每个任务固定自己的目录、时区和创建日，之后改设置不影响旧笔记。
+- 没有变化的对话不会重写笔记。
+- 删除或归档源对话 **不会** 删除本地笔记、图片和每日链接。
+
+## WorkBuddy 对话（实验性）
+
+在设置的 **WorkBuddy** 标签页允许读取本地数据，点 **检查本地数据**，通过后点 **开始 WorkBuddy 同步**。
+
+- 读取本机 `~/.workbuddy/projects` 下的对话记录（也可以填其他绝对路径），笔记默认写入 `WorkBuddy Conversations/`。
+- 提问里的图片复制进 `Attachments/WorkBuddy/<笔记名>/`（可修改），直接显示在提问中。
+- 不需要 WorkBuddy 账号令牌，不调用 WorkBuddy 云端接口。
+- 与 Codex 同步互不影响，默认关闭。首次开启会导入已有的本地对话。
+- 已在 macOS 版 WorkBuddy 5.6.2 和 5.7.7 验证。纯云端任务暂不支持。WorkBuddy 的本地格式没有公开承诺稳定，格式不兼容时只停止导入该对话，已有笔记保持不变。
+
+## 隐私
+
+- 登录走 Codex 官方的浏览器授权。插件 **不接触密码和登录令牌**。
+- 插件本身不发 HTTP 请求、不上传对话、不收集遥测、不自动安装依赖。
+- Codex 程序本身会按它的配置连接 OpenAI；你的库是否上传到云端取决于你自己的同步工具。
+- 插件的 `data.json` 存有任务 ID 和笔记路径，属于个人数据，不要公开分享。
+
+完整说明见 [PRIVACY.md](PRIVACY.md)。
+
+## 常见问题
+
+**能导入 ChatGPT 网页版的历史吗？**
+不能。它只处理本机 Codex Desktop 的主任务，以及可选的本机 WorkBuddy 对话。
+
+**为什么以前的任务没有同步？**
+只同步「开始同步」之后新建的 Codex 任务。WorkBuddy 例外：首次开启会导入已有的本地对话。
+
+**我在笔记里写的东西会被覆盖吗？**
+不会。同步只更新笔记里由插件管理的区域，区域外的文字和你加的属性都会保留。
+
+**界面支持中文吗？**
+支持简体中文和 English，在设置的「语言」里切换，只影响界面文字。
+
+## 兼容性
+
+| 项目 | 状态 |
+|---|---|
+| Obsidian | 1.13.7+，仅桌面端 |
+| macOS | 已验证 |
+| Windows | 支持，实机验收进行中 |
+| WorkBuddy | macOS 5.6.2、5.7.7 已验证 |
 
 ## 开发
 
 ```sh
 npm ci
-npm run package
+npm run package   # lint、测试、构建并做发布前隐私检查
 ```
 
-本项目不是 OpenAI 或 Obsidian 官方插件。
+问题和建议欢迎提 [Issue](https://github.com/isink/Codex-Daybook/issues)。
+
+---
+
+MIT 许可证。本项目不是 OpenAI、WorkBuddy 或 Obsidian 的官方插件。

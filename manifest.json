@@ -3,7 +3,7 @@
   "name": "Codex Daybook",
   "version": "0.5.12",
   "minAppVersion": "1.13.7",
-  "description": "Saves local Codex Desktop conversations as notes, with optional local WorkBuddy import and daily track links.",
+  "description": "Turns local Codex Desktop conversations into organized notes, with optional WorkBuddy import, images, and daily track links.",
   "author": "duskecho",
   "isDesktopOnly": true
 }
