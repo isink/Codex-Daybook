@@ -1,6 +1,6 @@
 # Codex Daybook 0.5.12
 
-0.5.12 is a local candidate with WorkBuddy support, not yet publicly released. The older 0.5.11 candidate ZIP does not include WorkBuddy.
+0.5.12 adds local WorkBuddy conversation import, including images attached to questions, and includes the 0.5.11 saving-quality fixes.
 
 Desktop Obsidian plugin that saves completed local **Codex Desktop** conversations as Markdown notes, with optional import of local **WorkBuddy** conversations. An optional daily track can link them into a daily Dataview trail. It is not a ChatGPT history importer: Codex sync handles local Desktop main tasks, and only tasks created after you start sync are captured.
 

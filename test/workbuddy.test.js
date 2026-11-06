@@ -42,11 +42,11 @@ test('an unfamiliar user envelope or a mismatched session fails closed',()=>{
 });
 
 test('WorkBuddy 5.7 image messages import, with the image named instead of its private path',()=>{
-  const blob={type:'image_blob_ref',blob_id:'abc',mime:'image/jpeg',size:1,blob_path:'/Users/me/.workbuddy/blobs/ab/abc.jpg',original_filename:'Screenshot 1.png'};
+  const blob={type:'image_blob_ref',blob_id:'abc',mime:'image/jpeg',size:1,blob_path:'/home/me/.workbuddy/blobs/ab/abc.jpg',original_filename:'Screenshot 1.png'};
   const parts=[
     {type:'input_text',text:'<system-reminder>PRIVATE_CONTEXT</system-reminder>\n<user_query>看看这张 @image#1:"Screenshot 1.png"</user_query>'},
     blob,
-    {type:'input_text',text:'<image_local_path>/Users/me/.workbuddy/clipboard-images/c.jpg</image_local_path>'},
+    {type:'input_text',text:'<image_local_path>/home/me/.workbuddy/clipboard-images/c.jpg</image_local_path>'},
   ];
   const text=wb.userText(parts);
   assert.equal(text,'看看这张 （附件未导入：Screenshot 1.png）');
@@ -130,15 +130,15 @@ test('access consent is required and a failed state write stops the batch',async
 
 test('only a blob-named file inside a blobs folder is accepted as an image source',()=>{
   const id='2bab4f92bc6483df';
-  const ok={type:'image_blob_ref',blob_id:id,blob_path:`/Users/me/.workbuddy/blobs/2b/${id}.jpg`};
+  const ok={type:'image_blob_ref',blob_id:id,blob_path:`/home/me/.workbuddy/blobs/2b/${id}.jpg`};
   assert.equal(wb.blobPath(ok),ok.blob_path);
   for(const bad of [
-    {...ok,blob_path:'/Users/me/.ssh/id_rsa'},
-    {...ok,blob_path:`/Users/me/.workbuddy/blobs/2b/../../../.ssh/${id}.jpg`},
-    {...ok,blob_path:`/Users/me/.workbuddy/other/2b/${id}.jpg`},
-    {...ok,blob_path:`/Users/me/.workbuddy/blobs/zz/${id}.jpg`},
+    {...ok,blob_path:'/home/me/.ssh/id_rsa'},
+    {...ok,blob_path:`/home/me/.workbuddy/blobs/2b/../../../.ssh/${id}.jpg`},
+    {...ok,blob_path:`/home/me/.workbuddy/other/2b/${id}.jpg`},
+    {...ok,blob_path:`/home/me/.workbuddy/blobs/zz/${id}.jpg`},
     {...ok,blob_path:`.workbuddy/blobs/2b/${id}.jpg`},
-    {...ok,blob_path:`/Users/me/.workbuddy/blobs/2b/${id}.txt`},
+    {...ok,blob_path:`/home/me/.workbuddy/blobs/2b/${id}.txt`},
   ])assert.equal(wb.blobPath(bad),null,bad.blob_path);
 });
 

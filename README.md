@@ -1,6 +1,6 @@
 # Codex Daybook 0.5.12
 
-0.5.12 是包含 WorkBuddy 功能的本地候选版本，尚未公开发布；旧的 0.5.11 候选安装包不含 WorkBuddy。
+0.5.12 新增 WorkBuddy 本地对话导入（含提问中的图片），并包含 0.5.11 的对话保存质量修复。
 
 Obsidian 桌面插件，将本机 **Codex Desktop** 完成的对话保存为 Markdown 笔记，并可选导入本机 **WorkBuddy** 对话。可选开启每日轨迹，按创建日加入 Dataview 每日轨迹。不是 ChatGPT 历史同步器：Codex 只处理本机 Desktop 主任务，且只有开始同步之后新建的任务才会被采集。
 
