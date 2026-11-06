@@ -83,9 +83,9 @@ Anything below is your own; sync never touches it.
 
 ## WorkBuddy conversations (experimental)
 
-On the **WorkBuddy** tab, allow local data access, click **Check local data**, then **Start WorkBuddy sync**.
+On the **WorkBuddy** tab, allow local data access, click **Scan WorkBuddy data** to fill the folder, then **Check local data** and **Start WorkBuddy sync**. You can still enter an absolute path manually if scanning finds nothing.
 
-- Reads conversations under `~/.workbuddy/projects` (or another absolute path you set). Notes go to `WorkBuddy Conversations/` by default.
+- Reads conversations under `~/.workbuddy/projects`, a WorkBuddy environment-configured location, or a common app-data location (or another absolute path you set). The bounded scan does not crawl the whole disk. Notes go to `WorkBuddy Conversations/` by default.
 - Images in your questions are copied to `Attachments/WorkBuddy/<note>/` (configurable) and shown inline.
 - No WorkBuddy token and no WorkBuddy cloud API.
 - Off by default and independent of Codex sync. The first run imports your existing local conversations.

@@ -168,8 +168,13 @@ class SyncSettings extends PluginSettingTab {
       .addButton(b=>bindButton(b,t('Copy query'),async()=>{await navigator.clipboard.writeText(QUERY);p.diagnostic=t('Query copied to clipboard.');}));
 
     workbuddyPanel.createEl('p',{cls:'codex-daybook-note',text:t('Reads local WorkBuddy task files only. Verified on WorkBuddy 5.6.2 and 5.7.7 for macOS. Existing local conversations are included when sync starts, and attached images are copied into the vault; cloud-only tasks and other attachments are not imported. No WorkBuddy account token is used.')});
+    let workbuddySourceField;
     new Setting(workbuddyPanel).setName(t('WorkBuddy data folder')).setDesc(t('Leave blank to use the local .workbuddy/projects folder. Enter an absolute path only when WorkBuddy stores it elsewhere.'))
-      .addText(input=>input.setValue(workbuddyDraft.sourceFolder).onChange(value=>{workbuddyDraft.sourceFolder=value;}));
+      .addText(input=>{workbuddySourceField=input;input.setValue(workbuddyDraft.sourceFolder).onChange(value=>{workbuddyDraft.sourceFolder=value;});})
+      .addButton(b=>bindButton(b,t('Scan WorkBuddy data'),async()=>{
+        const found=await p.scanWorkBuddy(workbuddyDraft);
+        workbuddyDraft.sourceFolder=found.folder;workbuddySourceField.setValue(found.folder);
+      }));
     new Setting(workbuddyPanel).setName(t('WorkBuddy notes folder')).setDesc(t('Vault-relative folder for WorkBuddy conversation notes.'))
       .addText(input=>{input.setValue(workbuddyDraft.noteFolder);addSuggestions(c,input,'codex-daybook-folder-workbuddy',folders);input.onChange(value=>{workbuddyDraft.noteFolder=value;});});
     new Setting(workbuddyPanel).setName(t('WorkBuddy images folder')).setDesc(t('Vault-relative folder for images attached in WorkBuddy conversations. Each conversation gets its own subfolder.'))
@@ -310,6 +315,15 @@ module.exports=class CodexDailySync extends Plugin {
     if(!config.consent)throw {safeMessage:this.t('Allow local WorkBuddy access first.')};
     let found;try{found=await workbuddy.checkSource(config);}catch{throw {safeMessage:this.t('WorkBuddy local data could not be verified. Check its folder and version.')}}
     this.diagnostic=this.t('WorkBuddy local data verified: {count} conversation file(s).',{count:found.files});
+  });}
+  async scanWorkBuddy(draft){return this.control(async()=>{
+    const config=workbuddy.validate({...this.state.workbuddy,...draft});
+    if(!config.consent)throw {safeMessage:this.t('Allow local WorkBuddy access first.')};
+    try{
+      const found=await workbuddy.scanSources(config);
+      this.diagnostic=this.t('Found WorkBuddy data at {path}: {count} conversation file(s).',{path:found.folder,count:found.files});
+      return found;
+    }catch(error){throw {safeMessage:this.t(error.message||'WorkBuddy local data could not be verified. Check its folder and version.')}}
   });}
   async startWorkBuddy(draft){return this.control(async()=>{
     let config;try{config=workbuddy.validate({...this.state.workbuddy,...draft,enabled:false,sessions:this.state.workbuddy.sessions});}catch(error){throw {safeMessage:this.t(error.message)};}

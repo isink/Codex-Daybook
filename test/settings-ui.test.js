@@ -235,6 +235,16 @@ test('checking WorkBuddy uses the unsaved draft without pausing an active sync',
   assert.equal(paused,false);
 });
 
+test('WorkBuddy one-click scan fills the unsaved data folder after consent',async()=>{
+  const {plugin,tab}=await buildTab();tab.display();const c=tab.containerEl,message=statusMessage(c);
+  const toggle=allSettings(c).find(s=>s.name==='Allow local WorkBuddy access').components.find(x=>x instanceof FakeToggleComponent);
+  await toggle.toggle(true);
+  plugin.scanWorkBuddy=async draft=>{assert.equal(draft.consent,true);plugin.diagnostic='Found WorkBuddy data at /tmp/workbuddy/projects: 2 conversation file(s).';return {folder:'/tmp/workbuddy/projects',files:2};};
+  await findButton(c,'Scan WorkBuddy data').press();
+  assert.equal(textComponents(c)[7].value,'/tmp/workbuddy/projects');
+  assert.equal(message.text,'Found WorkBuddy data at /tmp/workbuddy/projects: 2 conversation file(s).');
+});
+
 test('folder fields suggest existing vault folders and still accept a new path',async()=>{
   const {tab}=await buildTab({}, {folders:[{path:'90_Templates'},{path:'00_Inbox'},{path:'90_Templates/Daily'},{path:''},{path:'00_Inbox'}]});
   tab.display();

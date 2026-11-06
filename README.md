@@ -83,9 +83,9 @@ daily: "[[Daily/2026-11-06]]"
 
 ## WorkBuddy 对话（实验性）
 
-在设置的 **WorkBuddy** 标签页允许读取本地数据，点 **检查本地数据**，通过后点 **开始 WorkBuddy 同步**。
+在设置的 **WorkBuddy** 标签页允许读取本地数据，先点 **一键扫描 WorkBuddy 数据** 自动填写目录，再点 **检查本地数据**；通过后点 **开始 WorkBuddy 同步**。如果扫描不到，仍可手动填写绝对路径。
 
-- 读取本机 `~/.workbuddy/projects` 下的对话记录（也可以填其他绝对路径），笔记默认写入 `WorkBuddy Conversations/`。
+- 读取本机 `~/.workbuddy/projects`、WorkBuddy 环境变量指定目录或常见应用数据目录下的对话记录（也可以填其他绝对路径），笔记默认写入 `WorkBuddy Conversations/`。扫描仅检查这些限定位置，不遍历整块磁盘。
 - 提问里的图片复制进 `Attachments/WorkBuddy/<笔记名>/`（可修改），直接显示在提问中。
 - 不需要 WorkBuddy 账号令牌，不调用 WorkBuddy 云端接口。
 - 与 Codex 同步互不影响，默认关闭。首次开启会导入已有的本地对话。

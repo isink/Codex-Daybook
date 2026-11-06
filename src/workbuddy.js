@@ -31,6 +31,34 @@ function validate(config){
 }
 function sourceFolder(config=defaults()){return config.sourceFolder||path.join(os.homedir(),'.workbuddy','projects');}
 
+function uniquePaths(values){
+  const seen=new Set();
+  return values.filter(value=>{
+    if(typeof value!=='string'||!value.trim())return false;
+    const normalized=path.resolve(value.trim());
+    const key=process.platform==='win32'?normalized.toLowerCase():normalized;
+    if(seen.has(key))return false;
+    seen.add(key);return true;
+  }).map(value=>path.resolve(value.trim()));
+}
+
+/**
+ * Known WorkBuddy conversation locations. WorkBuddy itself uses
+ * WORKBUDDY_CONFIG_DIR when set and otherwise stores projects under the
+ * current user's data folder. The additional app-data roots cover desktop
+ * installs that relocate their data without making us crawl the whole disk.
+ */
+function sourceCandidates(config=defaults(),options={}){
+  const home=options.home||os.homedir(),env=options.env||process.env;
+  const roots=[env.WORKBUDDY_CONFIG_DIR,env.CODEBUDDY_CONFIG_DIR,env.CODEBUDDY_DATA_ROOT].filter(Boolean);
+  const dataName=env.WORKBUDDY_DATA_FOLDER_NAME?.trim()||'.workbuddy';
+  roots.push(path.join(home,dataName),path.join(home,'.workbuddy'),path.join(home,'.codebuddy'));
+  if(env.APPDATA)roots.push(path.join(env.APPDATA,'WorkBuddy'),path.join(env.APPDATA,'.workbuddy'));
+  if(env.LOCALAPPDATA)roots.push(path.join(env.LOCALAPPDATA,'WorkBuddy'),path.join(env.LOCALAPPDATA,'.workbuddy'));
+  if((options.platform||process.platform)==='darwin')roots.push(path.join(home,'Library','Application Support','WorkBuddy'),path.join(home,'Library','Application Support','com.tencent.workbuddy.mac'));
+  return uniquePaths([config.sourceFolder,...roots.flatMap(root=>[root,path.join(root,'projects')])]);
+}
+
 async function listFiles(root){
   let projects;
   try{projects=await fs.readdir(root,{withFileTypes:true});}
@@ -248,6 +276,28 @@ async function checkSource(config=defaults()){
   }
   throw Error('No compatible completed local WorkBuddy conversation was found.');
 }
+async function scanSources(config=defaults(),options={}){
+  const checked=validate(config);
+  if(!checked.consent)throw Error('Allow local WorkBuddy access first.');
+  let sawFiles=false;
+  for(const root of sourceCandidates(checked,options)){
+    let files;
+    try{files=await listFiles(root);}catch(error){
+      if(error.message==='WorkBuddy local conversation folder was not found.'||['ENOENT','ENOTDIR','EACCES','EPERM'].includes(error.code))continue;
+      throw error;
+    }
+    if(!files.length)continue;
+    sawFiles=true;
+    for(const file of files){
+      try{
+        const {conversation}=await readConversation(file);
+        if(conversation.pairs.length)return {folder:root,files:files.length,sampleId:file.id,pairs:conversation.pairs.length};
+      }catch{/* Another session may be in progress or use an unsupported format. */}
+    }
+  }
+  if(sawFiles)throw Error('WorkBuddy data was found, but no compatible completed local conversation could be verified. Check the WorkBuddy version or finish a local task.');
+  throw Error('No WorkBuddy data folder was found in the standard locations. Create or complete a local WorkBuddy task, or enter the folder manually.');
+}
 async function syncBatch({vault,state,persist,alive=()=>true,now=Date.now}){
   const config=validate(state.workbuddy||defaults());
   if(!config.enabled||!config.consent)throw Error('WorkBuddy sync is not enabled.');
@@ -280,4 +330,4 @@ async function syncBatch({vault,state,persist,alive=()=>true,now=Date.now}){
   }
   return {state:current,report};
 }
-module.exports={START,END,defaults,validate,sourceFolder,listFiles,userText,userImages,blobPath,copyImages,assistantText,parseConversation,renderTranscript,noteId,newNote,updateNote,writeNote,readConversation,checkSource,syncBatch};
+module.exports={START,END,defaults,validate,sourceFolder,sourceCandidates,listFiles,userText,userImages,blobPath,copyImages,assistantText,parseConversation,renderTranscript,noteId,newNote,updateNote,writeNote,readConversation,checkSource,scanSources,syncBatch};

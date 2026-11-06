@@ -2,16 +2,18 @@
 
 状态：**未验证**。macOS 上的路径单元测试不能代替 Windows 实机测试。同一安装 ZIP 供两平台使用。
 
-## 0.5.12 测试包安装
+## 0.5.13 测试包安装
 
-1. 将 `codex-daily-sync-0.5.12.zip`、`SHA256SUMS.txt`、本文及 `ACCEPTANCE.md` 复制到 Windows。
-2. 在 PowerShell 执行 `Get-FileHash .\codex-daily-sync-0.5.12.zip -Algorithm SHA256`，与校验文件中同名安装包的值核对。两平台使用相同 ZIP。
+1. 将 `codex-daily-sync-0.5.13.zip`、`SHA256SUMS.txt`、本文及 `ACCEPTANCE.md` 复制到 Windows。
+2. 在 PowerShell 执行 `Get-FileHash .\codex-daily-sync-0.5.13.zip -Algorithm SHA256`，与校验文件中同名安装包的值核对。两平台使用相同 ZIP。
 3. 创建独立空库并安装 Dataview；将 ZIP 内的 `codex-daily-sync` 文件夹放进测试库 `.obsidian/plugins/`，重载 Obsidian 后启用插件。
 4. 以 Obsidian **1.13.7** 为最低版本基线，并记录 Dataview 与 Codex CLI 版本；按以下项目及 ACCEPTANCE.md 逐项填写。
 
 请使用独立空库、虚构任务与无隐私图片。记录 Windows、Obsidian、Dataview、Codex CLI 版本；不要提交真实聊天、`data.json` 或带私人路径的截图。
 
 - [ ] 解压安装后能启用；设置页打开，无笔记、任务读取或子进程自动出现。
+- [ ] 打开 WorkBuddy 标签页并允许本地数据访问，点击“一键扫描 WorkBuddy 数据”；记录回填目录和提示。扫描不得遍历无关磁盘目录。
+- [ ] 在 WorkBuddy 完成一个本地任务后点“检查本地数据”；若仍失败，记录 WorkBuddy 版本、脱敏后的回填目录和原始提示，不移动数据目录。
 - [ ] 未确认库外访问或未检查连接时，“开始同步”被阻止。
 - [ ] Dataview 禁用时不能开始；启用后恢复。
 - [ ] 从带空格/中文的安装路径选择真实 `codex.exe`，登录与分页检查通过。PATH 检测也测试一次。`.cmd`、不存在路径和 WSL 路径有明确失败提示。

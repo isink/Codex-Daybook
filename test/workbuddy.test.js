@@ -17,6 +17,39 @@ const answer=(id,text,at,status='completed')=>event('message',{id,role:'assistan
 const jsonl=events=>events.map(x=>JSON.stringify(x)).join('\n')+'\n';
 const route={timeZone:'Asia/Shanghai',noteFolder:'WorkBuddy Conversations',dailyFolder:'Daily',day:'2026-09-30',dailyTrackEnabled:false};
 
+async function writeConversation(root,id=ID){
+  const project=path.join(root,'a-project');await fs.mkdir(project,{recursive:true});
+  await fs.writeFile(path.join(project,id+'.jsonl'),jsonl([user('u1','visible question',start),answer('a1','visible answer',start+1000)].map(e=>({...e,sessionId:id}))));
+}
+
+test('one-click scan finds a compatible conversation in the standard user data folder',async t=>{
+  const home=await fs.mkdtemp(path.join(os.tmpdir(),'daybook-workbuddy-scan-'));
+  t.after(()=>fs.rm(home,{recursive:true,force:true}));
+  const projects=path.join(home,'.workbuddy','projects');await writeConversation(projects);
+  const found=await wb.scanSources({...wb.defaults(),consent:true},{home,env:{},platform:'linux'});
+  assert.equal(found.folder,projects);assert.equal(found.files,1);assert.equal(found.pairs,1);
+});
+
+test('one-click scan honors a relocated WorkBuddy config folder and fails safely',async t=>{
+  const home=await fs.mkdtemp(path.join(os.tmpdir(),'daybook-workbuddy-relocated-'));
+  t.after(()=>fs.rm(home,{recursive:true,force:true}));
+  const config=path.join(home,'relocated');const projects=path.join(config,'projects');await writeConversation(projects);
+  const base={...wb.defaults(),consent:true};
+  const found=await wb.scanSources(base,{home:path.join(home,'empty-home'),env:{WORKBUDDY_CONFIG_DIR:config},platform:'win32'});
+  assert.equal(found.folder,projects);
+  await assert.rejects(wb.scanSources({...base,consent:false},{home,env:{}}),/Allow local WorkBuddy access first/);
+  await assert.rejects(wb.scanSources(base,{home:path.join(home,'missing'),env:{},platform:'win32'}),/No WorkBuddy data folder/);
+});
+
+test('one-click scan checks the Windows app-data candidate without scanning the user profile',async t=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daybook-workbuddy-appdata-'));
+  t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const appData=path.join(root,'AppData','Roaming');
+  const projects=path.join(appData,'WorkBuddy','projects');await writeConversation(projects);
+  const found=await wb.scanSources({...wb.defaults(),consent:true},{home:path.join(root,'empty-home'),env:{APPDATA:appData},platform:'win32'});
+  assert.equal(found.folder,projects);
+});
+
 test('imports only visible user queries and completed replies, excluding reasoning, tools and the pending turn',()=>{
   const source=jsonl([
     user('u1','visible question',start),
