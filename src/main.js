@@ -167,11 +167,12 @@ class SyncSettings extends PluginSettingTab {
     new Setting(dailyFields).setName(t('Copy the query text')).setDesc(t('Copies the Dataview block above to your clipboard, ready to paste into your own template or note.'))
       .addButton(b=>bindButton(b,t('Copy query'),async()=>{await navigator.clipboard.writeText(QUERY);p.diagnostic=t('Query copied to clipboard.');}));
 
-    workbuddyPanel.createEl('p',{cls:'codex-daybook-note',text:t('Reads local WorkBuddy task files only. Verified on WorkBuddy 5.6.2 and 5.7.7 for macOS. Existing local conversations are included when sync starts, and attached images are copied into the vault; cloud-only tasks and other attachments are not imported. No WorkBuddy account token is used.')});
+    workbuddyPanel.createEl('p',{cls:'codex-daybook-note',text:t('Reads completed local WorkBuddy conversations only. No uploads. Cloud-only tasks are not supported.')});
     let workbuddySourceField;
-    new Setting(workbuddyPanel).setName(t('WorkBuddy data folder')).setDesc(t('Leave blank to use the local .workbuddy/projects folder. Enter an absolute path only when WorkBuddy stores it elsewhere.'))
+    new Setting(workbuddyPanel).setName(t('WorkBuddy data folder')).setDesc(`${t('Leave blank to use the local .workbuddy/projects folder. Enter an absolute path only when WorkBuddy stores it elsewhere.')} ${t('Clicking Scan grants read-only access to check local WorkBuddy data; nothing is uploaded.')}`)
       .addText(input=>{workbuddySourceField=input;input.setValue(workbuddyDraft.sourceFolder).onChange(value=>{workbuddyDraft.sourceFolder=value;});})
       .addButton(b=>bindButton(b,t('Scan WorkBuddy data'),async()=>{
+        workbuddyDraft.consent=true;
         const found=await p.scanWorkBuddy(workbuddyDraft);
         workbuddyDraft.sourceFolder=found.folder;workbuddySourceField.setValue(found.folder);
       }));
@@ -179,11 +180,9 @@ class SyncSettings extends PluginSettingTab {
       .addText(input=>{input.setValue(workbuddyDraft.noteFolder);addSuggestions(c,input,'codex-daybook-folder-workbuddy',folders);input.onChange(value=>{workbuddyDraft.noteFolder=value;});});
     new Setting(workbuddyPanel).setName(t('WorkBuddy images folder')).setDesc(t('Vault-relative folder for images attached in WorkBuddy conversations. Each conversation gets its own subfolder.'))
       .addText(input=>{input.setValue(workbuddyDraft.attachmentFolder||'Attachments/WorkBuddy');addSuggestions(c,input,'codex-daybook-folder-workbuddy-images',folders);input.onChange(value=>{workbuddyDraft.attachmentFolder=value;});});
-    new Setting(workbuddyPanel).setName(t('Allow local WorkBuddy access')).setDesc(t('Read local conversation files outside this vault and save only visible user messages and completed replies. No uploads or telemetry.'))
-      .addToggle(toggle=>toggle.setValue(workbuddyDraft.consent).onChange(value=>{workbuddyDraft.consent=value;}));
     new Setting(workbuddyPanel).setName(t('WorkBuddy sync')).setDesc(t('Check the local format, then start or pause automatic sync. Codex sync runs independently.'))
-      .addButton(b=>bindButton(b,t('Check local data'),()=>p.checkWorkBuddy(workbuddyDraft)))
-      .addButton(b=>bindButton(b,t('Start WorkBuddy sync'),async()=>{await p.startWorkBuddy(workbuddyDraft);}).setCta())
+      .addButton(b=>bindButton(b,t('Check local data'),()=>{workbuddyDraft.consent=true;return p.checkWorkBuddy(workbuddyDraft);}))
+      .addButton(b=>bindButton(b,t('Start WorkBuddy sync'),async()=>{workbuddyDraft.consent=true;await p.startWorkBuddy(workbuddyDraft);}).setCta())
       .addButton(b=>bindButton(b,t('Pause WorkBuddy sync'),()=>p.pauseWorkBuddy()));
   }
 }

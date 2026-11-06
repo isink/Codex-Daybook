@@ -224,8 +224,6 @@ test('checking WorkBuddy uses the unsaved draft without pausing an active sync',
   tab.display();
   const fields=textComponents(tab.containerEl);
   await fields[7].type('/tmp/workbuddy-candidate');
-  const toggle=allSettings(tab.containerEl).find(s=>s.name==='Allow local WorkBuddy access').components.find(x=>x instanceof FakeToggleComponent);
-  await toggle.toggle(true);
   let checked,paused=false;
   plugin.checkWorkBuddy=async draft=>{checked={...draft};};
   plugin.pauseWorkBuddy=async()=>{paused=true;};
@@ -235,14 +233,20 @@ test('checking WorkBuddy uses the unsaved draft without pausing an active sync',
   assert.equal(paused,false);
 });
 
-test('WorkBuddy one-click scan fills the unsaved data folder after consent',async()=>{
+test('WorkBuddy one-click scan grants read-only consent and fills the unsaved data folder',async()=>{
   const {plugin,tab}=await buildTab();tab.display();const c=tab.containerEl,message=statusMessage(c);
-  const toggle=allSettings(c).find(s=>s.name==='Allow local WorkBuddy access').components.find(x=>x instanceof FakeToggleComponent);
-  await toggle.toggle(true);
+  assert.equal(allSettings(c).some(s=>s.name==='Allow local WorkBuddy access'),false);
   plugin.scanWorkBuddy=async draft=>{assert.equal(draft.consent,true);plugin.diagnostic='Found WorkBuddy data at /tmp/workbuddy/projects: 2 conversation file(s).';return {folder:'/tmp/workbuddy/projects',files:2};};
   await findButton(c,'Scan WorkBuddy data').press();
   assert.equal(textComponents(c)[7].value,'/tmp/workbuddy/projects');
   assert.equal(message.text,'Found WorkBuddy data at /tmp/workbuddy/projects: 2 conversation file(s).');
+});
+
+test('starting WorkBuddy sync grants ongoing local-read consent without a separate toggle',async()=>{
+  const {plugin,tab}=await buildTab();tab.display();let started;
+  plugin.startWorkBuddy=async draft=>{started={...draft};};
+  await findButton(tab.containerEl,'Start WorkBuddy sync').press();
+  assert.equal(started.consent,true);
 });
 
 test('folder fields suggest existing vault folders and still accept a new path',async()=>{
