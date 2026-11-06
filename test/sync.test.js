@@ -17,6 +17,21 @@ test('completed turns only: user, final, formal plan; no tools/reasoning/comment
   assert.equal(c.renderTranscript([{id:'done',status:'completed'}],[entries[0],entries[0]]).split('问题').length,2);
 });
 
+test('completed legacy turn without a final-answer phase keeps only its last unphased assistant message',()=>{
+  const turns=[{id:'legacy',status:'completed'},{id:'active',status:'inProgress'}];
+  const entries=[
+    entry('commentary','agentMessage',{text:'明确标记的进度说明',phase:'commentary'},'legacy'),
+    entry('older','agentMessage',{text:'较早的未标记消息'},'legacy'),
+    entry('answer','agentMessage',{text:'最后的兼容答复',phase:null},'legacy'),
+    entry('partial','agentMessage',{text:'未完成的未标记消息'},'active')
+  ];
+  const text=c.renderTranscript(turns,entries);
+  assert.ok(text.includes('最后的兼容答复'));
+  assert.ok(!text.includes('明确标记的进度说明'));
+  assert.ok(!text.includes('较早的未标记消息'));
+  assert.ok(!text.includes('未完成的未标记消息'));
+});
+
 test('a plain wikilink in Codex\'s own text becomes an inline embed only when it already resolves to an image in the vault; user text is never rewritten',()=>{
   const resolveEmbed=linkpath=>({'封面_v2':'png','已有笔记':null,'note.pdf':'pdf'}[linkpath]);
   assert.equal(c.embedImageLinks('已完成并保存 [[封面_v2]]。',resolveEmbed),'已完成并保存 ![[封面_v2]]。');
@@ -32,6 +47,49 @@ test('a plain wikilink in Codex\'s own text becomes an inline embed only when it
   assert.ok(text.includes('已完成并保存 ![[封面_v2]]。'));
   assert.ok(text.includes('下一步替换 ![[封面_v2]]'));
   assert.ok(text.includes('看看 [[封面_v2]]') && !text.includes('看看 ![[封面_v2]]'));
+});
+
+test('image embedding preserves fenced code, longer delimiters, quoted fences and CRLF',()=>{
+  const examples=[
+    ['```md','[[image]]','```'],
+    ['~~~~md','[[image]]','~~~','[[image]]','~~~~'],
+    ['````md','```','[[image]]','```','````'],
+    ['> ```md','> [[image]]','> ```'],
+    ['- ~~~md','  [[image]]','  ~~~'],
+    ['10. ~~~md','    [[image]]','    ~~~'],
+    ['```md','[[image]]','~~~','[[image]]','```']
+  ];
+  for(const lines of examples)for(const newline of ['\n','\r\n']) {
+    const code=lines.join(newline);let resolutions=0;
+    const input=`正文 [[image]]${newline}${code}${newline}结尾 [[image]]`;
+    const actual=c.embedImageLinks(input,()=>{resolutions++;return 'png';});
+    assert.equal(actual,`正文 ![[image]]${newline}${code}${newline}结尾 ![[image]]`);
+    assert.equal(resolutions,2,'code examples must not be resolved as files');
+  }
+});
+
+test('image embedding preserves inline and multiline code spans, including literal backticks',()=>{
+  for(const code of ['`[[image]]`','``a ` [[image]]``','`first\n[[image]]\nlast`','`first\n    [[image]]\n[[image]]\nlast`']) {
+    assert.equal(c.embedImageLinks(`[[image]] ${code} [[image]]`,()=> 'png'),`![[image]] ${code} ![[image]]`);
+  }
+  assert.equal(c.embedImageLinks('unmatched ` then [[image]]',()=> 'png'),'unmatched ` then ![[image]]');
+  assert.equal(c.embedImageLinks('escaped \\` [[image]] \\`',()=> 'png'),'escaped \\` ![[image]] \\`');
+});
+
+test('an unfinished code fence and indented code retain literal image links',()=>{
+  const unfinished='[[image]]\n```md\n[[image]]\n';
+  assert.equal(c.embedImageLinks(unfinished,()=> 'png'),'![[image]]\n```md\n[[image]]\n');
+  const indented='[[image]]\n\n    [[image]]\n\t[[image]]\n\n[[image]]';
+  assert.equal(c.embedImageLinks(indented,()=> 'png'),'![[image]]\n\n    [[image]]\n\t[[image]]\n\n![[image]]');
+});
+
+test('attachment relocation protects code examples in answers and formal plans',()=>{
+  const from='Attachments/old',to='Attachments/new';
+  const text=[`[[${from}/image.png]]`,`[original](${from}/image.png)`,`\`[[${from}/image.png]]\``,'```md',`![[${from}/image.png]]`,'```'].join('\n');
+  const entries=[entry('answer','agentMessage',{phase:'final_answer',text}),entry('plan','plan',{text})];
+  const expected=[`![[${to}/image.png]]`,`[original](${to}/image.png)`,`\`[[${from}/image.png]]\``,'```md',`![[${from}/image.png]]`,'```'].join('\n');
+  const actual=c.renderTranscript([{id:'done',status:'completed'}],entries,{},undefined,()=> 'png',{from,to});
+  assert.equal(actual.split(expected).length,3,'both answer and plan preserve the code while relocating real links');
 });
 
 test('marker examples are escaped and do not break later updates',()=>{

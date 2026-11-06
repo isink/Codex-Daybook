@@ -1,9 +1,9 @@
 {
   "id": "codex-daily-sync",
   "name": "Codex Daybook",
-  "version": "0.5.10",
+  "version": "0.5.12",
   "minAppVersion": "1.13.7",
-  "description": "Saves new local Codex Desktop main tasks as notes and links them into your daily track once sync is running.",
+  "description": "Saves local Codex Desktop conversations as notes, with optional local WorkBuddy import and daily track links.",
   "author": "duskecho",
   "isDesktopOnly": true
 }

@@ -8,6 +8,7 @@ const {upgradeState,validateSettings,startState,QUERY}=require('./settings');
 const {checkConnection}=require('./connection');
 const {translate,languageForHost}=require('./i18n');
 const {BrowserLogin}=require('./auth');
+const workbuddy=require('./workbuddy');
 
 function existingVaultFolders(vault){
   try{return [...new Set((vault?.getAllFolders?.()||[]).map(folder=>folder.path).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));}catch{return [];}
@@ -26,7 +27,7 @@ function addSuggestions(container,input,id,paths){
 }
 
 class NotePicker extends FuzzySuggestModal {
-  constructor(app,records,t){super(app);this.records=records;this.t=t;this.setPlaceholder(t('Choose a Codex conversation note'));}
+  constructor(app,records,t){super(app);this.records=records;this.t=t;this.setPlaceholder(t('Choose a synced conversation note'));}
   getItems(){return this.records;}
   getItemText(item){return item.name||this.t('Codex conversation');}
   onChooseItem(item){void this.app.workspace.openLinkText(item.notePath,'',true);}
@@ -50,7 +51,9 @@ class SyncSettings extends PluginSettingTab {
   // calls display() with no arguments, so the draft can't be passed as a
   // parameter — it's consumed from the instance instead, once, right here.
   display(){
-    const p=this.plugin,c=this.containerEl;c.empty();const draft=this._draft||{...p.state.settings};this._draft=null;const t=(message,values)=>translate(draft.language,message,values);
+    const p=this.plugin,c=this.containerEl;c.empty();const draft=this._draft||{...p.state.settings};this._draft=null;
+    const workbuddyDraft=this._workbuddyDraft||{...p.state.workbuddy};this._workbuddyDraft=null;
+    const t=(message,values)=>translate(draft.language,message,values);
     // Obsidian's official settings-tab lint (no-problematic-settings-headings)
     // rejects a heading that repeats the plugin's own name — the settings tab
     // already shows it. Lead straight into the settings themselves.
@@ -83,23 +86,25 @@ class SyncSettings extends PluginSettingTab {
     const tabs=c.createEl('div',{cls:'codex-daybook-tabs'});
     const basicTabButton=tabs.createEl('button',{cls:'codex-daybook-tab',text:t('Basic settings')});
     const dailyTabButton=tabs.createEl('button',{cls:'codex-daybook-tab',text:t('Daily track')});
+    const workbuddyTabButton=tabs.createEl('button',{cls:'codex-daybook-tab',text:t('WorkBuddy')});
     const message=c.createEl('p',{cls:'codex-daybook-note',text:p.diagnostic||(p.state.enabled?t('Syncing'):t('Paused — awaiting setup'))});
     p.authMessageEl=message;
     const basicPanel=c.createEl('div',{cls:'codex-daybook-panel-basic'});
     const dailyPanel=c.createEl('div',{cls:'codex-daybook-panel-daily'});
+    const workbuddyPanel=c.createEl('div',{cls:'codex-daybook-panel-workbuddy'});
     const selectTab=name=>{
       this.activeTab=name;
-      const basic=name==='basic';
-      basicPanel.hidden=!basic;dailyPanel.hidden=basic;
-      basicTabButton.toggleClass('is-active',basic);dailyTabButton.toggleClass('is-active',!basic);
+      basicPanel.hidden=name!=='basic';dailyPanel.hidden=name!=='daily';workbuddyPanel.hidden=name!=='workbuddy';
+      basicTabButton.toggleClass('is-active',name==='basic');dailyTabButton.toggleClass('is-active',name==='daily');workbuddyTabButton.toggleClass('is-active',name==='workbuddy');
     };
     basicTabButton.onclick=()=>selectTab('basic');
     dailyTabButton.onclick=()=>selectTab('daily');
+    workbuddyTabButton.onclick=()=>selectTab('workbuddy');
     selectTab(this.activeTab||'basic');
 
     // Basic settings tab — everything needed to just collect conversations.
     new Setting(basicPanel).setName(t('Language')).setDesc(t('Updates this settings panel immediately. Save settings to also apply it to notices and command names.'))
-      .addDropdown(d=>d.addOption('zh','简体中文').addOption('en','English').setValue(draft.language).onChange(value=>{draft.language=value;this._draft=draft;this.update();}));
+      .addDropdown(d=>d.addOption('zh','简体中文').addOption('en','English').setValue(draft.language).onChange(value=>{draft.language=value;this._draft=draft;this._workbuddyDraft=workbuddyDraft;this.update();}));
     addField(basicPanel,'noteFolder',t('Notes folder'),t('Vault-relative folder for synced conversation notes.'));
     addField(basicPanel,'attachmentFolder',t('Attachments folder'),t('Vault-relative folder for copied images.'));
     let executableField;
@@ -161,6 +166,20 @@ class SyncSettings extends PluginSettingTab {
     dailyFields.createEl('textarea',{cls:'codex-daybook-query',text:QUERY,attr:{readonly:'true',rows:'6','aria-label':t('Dataview query example')}});
     new Setting(dailyFields).setName(t('Copy the query text')).setDesc(t('Copies the Dataview block above to your clipboard, ready to paste into your own template or note.'))
       .addButton(b=>bindButton(b,t('Copy query'),async()=>{await navigator.clipboard.writeText(QUERY);p.diagnostic=t('Query copied to clipboard.');}));
+
+    workbuddyPanel.createEl('p',{cls:'codex-daybook-note',text:t('Reads local WorkBuddy task files only. Verified on WorkBuddy 5.6.2 and 5.7.7 for macOS. Existing local conversations are included when sync starts, and attached images are copied into the vault; cloud-only tasks and other attachments are not imported. No WorkBuddy account token is used.')});
+    new Setting(workbuddyPanel).setName(t('WorkBuddy data folder')).setDesc(t('Leave blank to use the local .workbuddy/projects folder. Enter an absolute path only when WorkBuddy stores it elsewhere.'))
+      .addText(input=>input.setValue(workbuddyDraft.sourceFolder).onChange(value=>{workbuddyDraft.sourceFolder=value;}));
+    new Setting(workbuddyPanel).setName(t('WorkBuddy notes folder')).setDesc(t('Vault-relative folder for WorkBuddy conversation notes.'))
+      .addText(input=>{input.setValue(workbuddyDraft.noteFolder);addSuggestions(c,input,'codex-daybook-folder-workbuddy',folders);input.onChange(value=>{workbuddyDraft.noteFolder=value;});});
+    new Setting(workbuddyPanel).setName(t('WorkBuddy images folder')).setDesc(t('Vault-relative folder for images attached in WorkBuddy conversations. Each conversation gets its own subfolder.'))
+      .addText(input=>{input.setValue(workbuddyDraft.attachmentFolder||'Attachments/WorkBuddy');addSuggestions(c,input,'codex-daybook-folder-workbuddy-images',folders);input.onChange(value=>{workbuddyDraft.attachmentFolder=value;});});
+    new Setting(workbuddyPanel).setName(t('Allow local WorkBuddy access')).setDesc(t('Read local conversation files outside this vault and save only visible user messages and completed replies. No uploads or telemetry.'))
+      .addToggle(toggle=>toggle.setValue(workbuddyDraft.consent).onChange(value=>{workbuddyDraft.consent=value;}));
+    new Setting(workbuddyPanel).setName(t('WorkBuddy sync')).setDesc(t('Check the local format, then start or pause automatic sync. Codex sync runs independently.'))
+      .addButton(b=>bindButton(b,t('Check local data'),()=>p.checkWorkBuddy(workbuddyDraft)))
+      .addButton(b=>bindButton(b,t('Start WorkBuddy sync'),async()=>{await p.startWorkBuddy(workbuddyDraft);}).setCta())
+      .addButton(b=>bindButton(b,t('Pause WorkBuddy sync'),()=>p.pauseWorkBuddy()));
   }
 }
 module.exports=class CodexDailySync extends Plugin {
@@ -168,21 +187,31 @@ module.exports=class CodexDailySync extends Plugin {
   refreshCommandNames(){for(const [command,key] of this.localizedCommands||[])command.name=`${this.manifest.name||'Codex Daybook'}: ${this.t(key)}`;}
   registerLocalizedCommand(command){const key=command.name;command.name=this.t(key);const registered=this.addCommand(command);this.localizedCommands.push([registered||command,key]);}
   async onload(){
-    this.stopped=false;this.running=false;this.generation=0;this.checked=false;this.controlBusy=false;
+    this.stopped=false;this.running=false;this.workbuddyRunning=false;this.generation=0;this.workbuddyGeneration=0;this.checked=false;this.controlBusy=false;
     this.initialLanguage=languageForHost(typeof getLanguage==='function'?getLanguage():'en');
     this.localizedCommands=[];this.status=this.addStatusBarItem();
     const saved=(await this.loadData())||{};let dailyConfig={};
     if(['zh','en'].includes(saved.settings?.language))this.initialLanguage=saved.settings.language;
     if(saved.schemaVersion!==3 && Object.keys(saved).length){try{dailyConfig=JSON.parse(await this.app.vault.adapter.read(this.app.vault.configDir+'/daily-notes.json'));}catch{}}
-    try{this.state=await upgradeState(saved,this.app.vault,dailyConfig,this.initialLanguage);}catch(error){new Notice(this.t(error.message));throw error;}
+    try{
+      const upgraded=await upgradeState(saved,this.app.vault,dailyConfig,this.initialLanguage);
+      this.state=upgraded.workbuddy?upgraded:{...upgraded,workbuddy:workbuddy.defaults()};
+      workbuddy.validate(this.state.workbuddy);
+    }catch(error){new Notice(this.t(error.message));throw error;}
     if(this.state!==saved)await this.saveData(this.state);
     this.addSettingTab(new SyncSettings(this.app,this));
     this.registerDomEvent(document,'click',event=>{if(!this.stopped)handleThumbnailClick(event,this.app,allAttachments(this.state),()=>new Notice(this.t('Could not open the image — check the local copy.')));},true);
-    this.registerLocalizedCommand({id:'sync-now',name:'Sync enrolled tasks now',callback:()=>{if(!this.running)new Notice(this.t('Check the connection and start sync from settings first.'));else void this.sync(true);}});
+    this.registerLocalizedCommand({id:'sync-now',name:'Sync enrolled tasks now',callback:()=>{if(!this.running&&!this.workbuddyRunning)new Notice(this.t('Check the connection and start sync from settings first.'));else void this.sync(true);}});
     this.registerLocalizedCommand({id:'open-settings',name:'Open sync settings',callback:()=>this.openSettings()});
-    this.registerLocalizedCommand({id:'open-note',name:'Open a synced note',callback:()=>{const records=Object.values(this.state.threads).filter(t=>t.notePath&&this.app.vault.getAbstractFileByPath(t.notePath));if(records.length===1)void this.app.workspace.openLinkText(records[0].notePath,'',true);else if(records.length)new NotePicker(this.app,records,this.t.bind(this)).open();else new Notice(this.t('No synced note found in this vault.'));}});
+    this.registerLocalizedCommand({id:'open-note',name:'Open a synced note',callback:()=>{const records=[...Object.values(this.state.threads),...Object.values(this.state.workbuddy.sessions)].filter(t=>t.notePath&&this.app.vault.getAbstractFileByPath(t.notePath));if(records.length===1)void this.app.workspace.openLinkText(records[0].notePath,'',true);else if(records.length)new NotePicker(this.app,records,this.t.bind(this)).open();else new Notice(this.t('No synced note found in this vault.'));}});
     this.status.setText(this.t('Codex sync: paused'));
-    this.app.workspace.onLayoutReady(()=>{if(this.stopped)return;if(this.state.enabled)void this.resume().catch(()=>new Notice(this.t('Codex connection check failed — reconnect from settings. Local copies are kept.')));else this.openSettings();});
+    this.app.workspace.onLayoutReady(()=>{if(this.stopped)return;
+      this.workbuddyRunning=this.state.workbuddy.enabled;
+      this.updateTimer();
+      if(this.workbuddyRunning)void this.sync(false);
+      if(this.state.enabled)void this.resume().catch(()=>new Notice(this.t('Codex connection check failed — reconnect from settings. Local copies are kept.')));
+      else if(!this.workbuddyRunning)this.openSettings();
+    });
   }
   // app.setting has no public API (obsidian.d.ts does not declare it), so it
   // cannot be opened programmatically without relying on an undocumented,
@@ -206,7 +235,8 @@ module.exports=class CodexDailySync extends Plugin {
     return file && !('children' in file) ? file.extension : null;
   }
   async save(next){await this.saveData(next);this.state=next;}
-  async stopRuntime(){if(this.loginSession?.active)this.setLoginMessage('Login cancelled. Existing Codex login and local notes are kept.');this.loginSession?.dispose();this.loginSession=null;this.running=false;this.checked=false;this.generation++;window.clearInterval(this.timer);this.timer=null;this.client?.stop();this.client=null;await this.flight?.catch(()=>{});}
+  updateTimer(){window.clearInterval(this.timer);this.timer=undefined;if(!this.stopped&&(this.running||this.workbuddyRunning))this.timer=this.registerInterval(window.setInterval(()=>void this.sync(false),this.state.settings.intervalSeconds*1000));}
+  async stopRuntime(){if(this.loginSession?.active)this.setLoginMessage('Login cancelled. Existing Codex login and local notes are kept.');this.loginSession?.dispose();this.loginSession=null;this.running=false;this.checked=false;this.generation++;window.clearInterval(this.timer);this.timer=null;this.client?.stop();this.client=null;await this.flight?.catch(()=>{});this.updateTimer();}
   async control(fn){if(this.controlBusy)throw {safeMessage:this.t('An operation is already in progress — please wait.')};this.controlBusy=true;try{return await fn();}finally{this.controlBusy=false;}}
   async configure(draft){return this.control(async()=>{let settings;try{settings=validateSettings(draft);}catch(e){throw {safeMessage:this.t(e.message)};}await this.stopRuntime();await this.save({...this.state,settings,enabled:false});this.refreshCommandNames();this.status.setText(this.t('Codex sync: paused'));});}
   createClient(executable){return new CodexClient(executable);}
@@ -270,14 +300,34 @@ module.exports=class CodexDailySync extends Plugin {
     await this.dataview();if(this.stopped||this.client?.closed||!this.client)throw {safeMessage:this.t('Check the connection first.')};
     const generation=this.generation;
     let next;try{next=startState(this.state,this.checked);}catch(e){throw {safeMessage:this.t(e.message)};}
-    await this.save(next);if(this.stopped||generation!==this.generation)return;this.running=true;window.clearInterval(this.timer);
-    this.timer=this.registerInterval(window.setInterval(()=>void this.sync(false),this.state.settings.intervalSeconds*1000));
+    await this.save(next);if(this.stopped||generation!==this.generation)return;this.running=true;this.updateTimer();
     this.diagnostic=this.t('Sync started. The fixed starting point has been saved.');this.status.setText(this.t('Codex sync: running'));void this.sync(true);
   });}
   async resume(){await this.connect();await this.begin();}
   async pause(){return this.control(async()=>{await this.stopRuntime();await this.save({...this.state,enabled:false});this.diagnostic=this.t('Sync paused. The starting point and local copies are kept.');this.status.setText(this.t('Codex sync: paused'));});}
-  sync(manual=false){if(!this.running||this.stopped||this.flight)return this.flight;const job=this.syncInternal(manual);this.flight=job;void job.finally(()=>{if(this.flight===job)this.flight=null;});return job;}
-  async syncInternal(manual){
+  async checkWorkBuddy(draft){return this.control(async()=>{
+    let config;try{config=workbuddy.validate({...this.state.workbuddy,...draft,sessions:this.state.workbuddy.sessions});}catch(error){throw {safeMessage:this.t(error.message)};}
+    if(!config.consent)throw {safeMessage:this.t('Allow local WorkBuddy access first.')};
+    let found;try{found=await workbuddy.checkSource(config);}catch{throw {safeMessage:this.t('WorkBuddy local data could not be verified. Check its folder and version.')}}
+    this.diagnostic=this.t('WorkBuddy local data verified: {count} conversation file(s).',{count:found.files});
+  });}
+  async startWorkBuddy(draft){return this.control(async()=>{
+    let config;try{config=workbuddy.validate({...this.state.workbuddy,...draft,enabled:false,sessions:this.state.workbuddy.sessions});}catch(error){throw {safeMessage:this.t(error.message)};}
+    if(!config.consent)throw {safeMessage:this.t('Allow local WorkBuddy access first.')};
+    try{await workbuddy.checkSource(config);}catch{throw {safeMessage:this.t('WorkBuddy local data could not be verified. Check its folder and version.')}}
+    this.workbuddyRunning=false;this.workbuddyGeneration++;await this.flight?.catch(()=>{});
+    await this.save({...this.state,workbuddy:{...config,enabled:true}});
+    this.workbuddyRunning=true;this.updateTimer();this.diagnostic=this.t('WorkBuddy sync started. Existing local conversations will be imported.');
+    void this.sync(true);
+  });}
+  async pauseWorkBuddy(){return this.control(async()=>{
+    this.workbuddyRunning=false;this.workbuddyGeneration++;await this.flight?.catch(()=>{});
+    await this.save({...this.state,workbuddy:{...this.state.workbuddy,enabled:false}});
+    this.updateTimer();this.diagnostic=this.t('WorkBuddy sync paused. Local notes are kept.');
+  });}
+  sync(manual=false){if((!this.running&&!this.workbuddyRunning)||this.stopped||this.flight)return this.flight;const job=this.syncInternal(manual);this.flight=job;void job.finally(()=>{if(this.flight===job)this.flight=null;});return job;}
+  async syncInternal(manual){if(this.running)await this.syncCodexInternal(manual);if(this.workbuddyRunning)await this.syncWorkBuddyInternal(manual);}
+  async syncCodexInternal(manual){
     const generation=this.generation,alive=()=>!this.stopped&&this.running&&generation===this.generation;
     try{
       await this.dataview();
@@ -295,8 +345,28 @@ module.exports=class CodexDailySync extends Plugin {
       this.lastError=message;
       if(manual||report.changed)new Notice(this.t('Codex sync: {count} note(s) updated{images}',{count:report.changed,images:report.missingImages?this.t('; some original images are missing, text was kept'):''}));
     }catch{
-      if(alive()){this.diagnostic=this.t('Sync unavailable — local copies are kept. Reconnect from settings.');this.status.setText(this.t('Codex sync: awaiting reconnect'));if(manual||this.lastError!==this.diagnostic)new Notice(this.diagnostic);this.lastError=this.diagnostic;this.running=false;this.checked=false;window.clearInterval(this.timer);this.client?.stop();}
+      if(alive()){this.diagnostic=this.t('Sync unavailable — local copies are kept. Reconnect from settings.');this.status.setText(this.t('Codex sync: awaiting reconnect'));if(manual||this.lastError!==this.diagnostic)new Notice(this.diagnostic);this.lastError=this.diagnostic;this.running=false;this.checked=false;this.updateTimer();this.client?.stop();}
     }
   }
-  onunload(){this.loginSession?.dispose();this.loginSession=null;this.authMessageEl=null;this.stopped=true;this.running=false;this.checked=false;this.generation++;window.clearInterval(this.timer);this.client?.stop();}
+  async syncWorkBuddyInternal(manual){
+    const generation=this.workbuddyGeneration,alive=()=>!this.stopped&&this.workbuddyRunning&&generation===this.workbuddyGeneration;
+    try{
+      const {report}=await workbuddy.syncBatch({vault:this.app.vault,state:this.state,persist:next=>this.save(next),alive});
+      if(!alive())return;
+      this.workbuddyLastCheck={at:new Date().toISOString(),found:report.found,changed:report.changed,errors:report.errors.map(()=>({kind:'local'}))};
+      const status=report.errors.length?this.t('partial failure'):this.t('{seconds}s interval',{seconds:this.state.settings.intervalSeconds});
+      if(!this.running)this.status.setText(this.t('WorkBuddy sync: {notes} notes · {status}',{notes:Object.values(this.state.workbuddy.sessions).filter(s=>s.notePath&&this.app.vault.getAbstractFileByPath(s.notePath)).length,status}));
+      if(report.errors.length){const message=this.t('Some WorkBuddy conversations could not be synced. Existing notes are kept.');if(manual||this.workbuddyLastError!==message)new Notice(message,10000);this.workbuddyLastError=message;}
+      else this.workbuddyLastError=null;
+      if(manual||report.changed)new Notice(this.t('WorkBuddy sync: {count} note(s) updated',{count:report.changed}));
+    }catch{
+      if(alive()){
+        const message=this.t('WorkBuddy sync unavailable — local notes are kept.');
+        if(manual||this.workbuddyLastError!==message)new Notice(message);
+        this.workbuddyLastError=message;
+        if(!this.running)this.status.setText(this.t('WorkBuddy sync: retrying'));
+      }
+    }
+  }
+  onunload(){this.loginSession?.dispose();this.loginSession=null;this.authMessageEl=null;this.stopped=true;this.running=false;this.workbuddyRunning=false;this.checked=false;this.generation++;this.workbuddyGeneration++;window.clearInterval(this.timer);this.client?.stop();}
 };

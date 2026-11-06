@@ -66,6 +66,37 @@ body .workspace-leaf-content .markdown-view-content .codex-conversation .callout
   --p-spacing: 0.85rem;
 }
 
+.workbuddy-conversation .callout[data-callout="workbuddy-question"] {
+  --callout-color: var(--callout-default);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  width: fit-content;
+  max-width: 80%;
+  box-sizing: border-box;
+  margin: 1.6em 0 1em auto;
+  box-shadow: none;
+}
+.workbuddy-conversation .callout[data-callout="workbuddy-question"] .callout-title,
+.workbuddy-conversation .callout[data-callout="workbuddy-answer"] .callout-title {
+  color: var(--text-muted);
+  font-size: 0.78em;
+  font-weight: 500;
+}
+.workbuddy-conversation .callout[data-callout="workbuddy-question"] .callout-icon,
+.workbuddy-conversation .callout[data-callout="workbuddy-answer"] .callout-icon { display: none; }
+.workbuddy-conversation .callout[data-callout="workbuddy-question"] .callout-content { overflow-wrap: anywhere; min-width: 0; }
+.workbuddy-conversation .callout[data-callout="workbuddy-answer"] {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 1.25em 0 0.45em;
+}
+.workbuddy-conversation .callout[data-callout="workbuddy-answer"] .callout-content { display: none; }
+.workbuddy-conversation { --h1-size: 1.4em; --h2-size: 1.2em; --h3-size: 1.08em; --p-spacing: 0.85rem; }
+
 /* Settings-tab info/status boxes only — unrelated to the note-content rules
    above, which stay scoped to .codex-conversation notes. */
 .codex-daybook-note {
@@ -106,4 +137,5 @@ body .workspace-leaf-content .markdown-view-content .codex-conversation .callout
   color: var(--text-on-accent);
 }
 .codex-daybook-panel-basic,
-.codex-daybook-panel-daily { margin: 0.2em 0; }
+.codex-daybook-panel-daily,
+.codex-daybook-panel-workbuddy { margin: 0.2em 0; }

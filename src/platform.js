@@ -38,7 +38,13 @@ function codexExecutable(explicit='',{platform=process.platform,arch=process.arc
     if(!paths.isAbsolute(explicit)||!exists(explicit)||(platform==='win32'&&!/\.exe$/i.test(explicit)))throw Error('Choose a real Codex executable — on Windows it must be a .exe.');
     return explicit;
   }
-  const standards=platform==='darwin'?['/Applications/ChatGPT.app/Contents/Resources/codex','/Applications/Codex.app/Contents/Resources/codex','/opt/homebrew/bin/codex','/usr/local/bin/codex']:[];
+  const standards=platform==='darwin'?[
+    '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex',
+    '/Applications/ChatGPT.app/Contents/Resources/codex',
+    '/Applications/Codex.app/Contents/Resources/codex',
+    '/opt/homebrew/bin/codex',
+    '/usr/local/bin/codex'
+  ]:[];
   const searchPath=(env.PATH||env.Path||env.path||'').split(platform==='win32'?';':':').filter(p=>paths.isAbsolute(p));
   const match=[...standards,...searchPath.map(p=>paths.join(p,platform==='win32'?'codex.exe':'codex'))].find(exists);
   if(match)return match;

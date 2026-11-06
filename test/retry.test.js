@@ -92,10 +92,59 @@ test('old acknowledged signature is reconciled once, preserving cutoff, routing 
 
 test('a task settled by the previous release gets exactly one full re-read, then settles again',async()=>{
   const f=fixture();await f.run();
-  const old=JSON.parse(JSON.stringify(f.saved));old.threads[f.thread.id].publicationVersion=1;await f.persist(old);
+  assert.ok(PUBLICATION_VERSION>3);
+  const old=JSON.parse(JSON.stringify(f.saved));old.threads[f.thread.id].publicationVersion=3;await f.persist(old);
   let fullReads=0;const rpc=async(m,p)=>{if(m==='thread/items/list')fullReads++;return f.rpc(m,p);};
   await f.run({rpc});assert.equal(fullReads,1);assert.equal(f.record.publicationVersion,PUBLICATION_VERSION);
   await f.run({rpc});assert.equal(fullReads,1);
+});
+
+test('upgrade restores a previously omitted unphased answer without a new turn, keeping personal content and routing',async()=>{
+  const f=fixture();
+  const legacyRpc=async(m,p)=>{
+    const result=await f.rpc(m,p);
+    if(m==='thread/items/list')result.data=result.data.filter(e=>e.item.type!=='agentMessage');
+    return result;
+  };
+  await f.run({rpc:legacyRpc});
+  assert.ok(!f.note.text.includes('RESPONSE 1'));
+  f.note.text=f.note.text.replace('type: codex-conversation','type: codex-conversation\ncustom: keep');
+  f.note.text+='\nPersonal supplement\n';
+  const old=JSON.parse(JSON.stringify(f.saved));old.threads[f.thread.id].publicationVersion=3;
+  const before=JSON.parse(JSON.stringify(old));await f.persist(old);
+  let fullReads=0;
+  const rpc=async(m,p)=>{
+    const result=await f.rpc(m,p);
+    if(m==='thread/items/list') {
+      fullReads++;
+      result.data.find(e=>e.item.type==='agentMessage').item.phase=null;
+      result.data.push({turnId:'turn',item:{id:'progress',type:'agentMessage',phase:'commentary',text:'Excluded progress'}});
+    }
+    return result;
+  };
+  const repaired=await f.run({rpc});
+  assert.equal(repaired.report.errors.length,0);assert.equal(repaired.report.changed,1);
+  assert.match(f.note.text,/RESPONSE 1/);assert.match(f.note.text,/Personal supplement/);assert.match(f.note.text,/custom: keep/);
+  assert.ok(!f.note.text.includes('Excluded progress'));
+  assert.equal(f.saved.discoveryStartedAt,before.discoveryStartedAt);
+  assert.deepEqual(f.record.routing,before.threads[f.thread.id].routing);
+  assert.deepEqual(f.record.turnSignature,before.threads[f.thread.id].turnSignature);
+  assert.equal(f.record.notePath,before.threads[f.thread.id].notePath);
+  assert.equal(f.record.publicationVersion,PUBLICATION_VERSION);
+  const text=f.note.text;
+  assert.equal((await f.run({rpc})).report.changed,0);assert.equal(fullReads,1);assert.equal(f.note.text,text);
+});
+
+test('failed upgrade repair keeps the old publication version and retries without a new turn',async()=>{
+  const f=fixture();await f.run();f.note.text=f.note.text.replace('RESPONSE 1','Previously omitted');
+  const old=JSON.parse(JSON.stringify(f.saved));old.threads[f.thread.id].publicationVersion=3;await f.persist(old);
+  const process=f.vault.process;f.vault.process=async()=>{throw Error('Disk full during upgrade');};
+  assert.equal((await f.run()).report.errors.length,1);
+  assert.equal(f.record.publicationVersion,3);assert.equal(f.record.syncPending,true);
+  f.vault.process=process;
+  assert.equal((await f.run()).report.changed,1);assert.match(f.note.text,/RESPONSE 1/);
+  assert.equal(f.record.publicationVersion,PUBLICATION_VERSION);assert.equal(f.record.syncPending,false);
+  assert.equal((await f.run()).report.changed,0);
 });
 
 test('a conversation\'s images go in a folder named after the conversation, and the name stays put after a rename',async()=>{

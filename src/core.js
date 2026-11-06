@@ -51,13 +51,53 @@ function attachmentKey(turnId, item, index) { return `${turnId}/${item.id}/${ind
 // resolved file's extension (e.g. 'png') or a falsy value; this never scans
 // paths or imports anything itself, only asks the vault's own link index.
 const IMAGE_EXTENSIONS = new Set(['png','jpg','jpeg','gif','webp']);
+// Transform prose only. Keep code examples byte-for-byte, including longer
+// backtick delimiters, quoted fences, and an unfinished fenced block.
+function mapMarkdownProse(text, transform) {
+  const inline = prose => {
+    const ticks = [...prose.matchAll(/`+/g)];
+    let output = '', start = 0;
+    for (let i = 0; i < ticks.length; i++) {
+      const open = ticks[i];
+      let slashes = 0;
+      for (let at = open.index - 1; at >= 0 && prose[at] === '\\'; at--) slashes++;
+      if (slashes % 2) continue;
+      let close = i + 1;
+      while (close < ticks.length && ticks[close][0].length !== open[0].length) close++;
+      if (close === ticks.length) continue; // An unmatched backtick is prose.
+      const end = ticks[close].index + ticks[close][0].length;
+      output += transform(prose.slice(start, open.index)) + prose.slice(open.index, end);
+      start = end;
+      i = close;
+    }
+    return output + transform(prose.slice(start));
+  };
+  let output = '', prose = '', fence = null, paragraph = false;
+  const flush = () => { output += inline(prose); prose = ''; };
+  for (const line of text.match(/[^\n]*\n|[^\n]+$/g) || []) {
+    const marker = /^[ \t]*(?:>[ \t]*)*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})([^\r\n]*)/.exec(line);
+    if (fence) {
+      output += line;
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
+    } else if (marker && (marker[1][0] !== '`' || !marker[2].includes('`'))) {
+      flush(); fence = marker[1]; paragraph = false; output += line;
+    } else if (/^(?: {4}|\t)/.test(line) && !paragraph) {
+      // Indented code is also protected; be conservative with nested blocks.
+      flush(); output += line;
+    } else if (!line.trim()) {
+      flush(); output += line; paragraph = false;
+    } else { prose += line; paragraph = true; }
+  }
+  flush();
+  return output;
+}
 function embedImageLinks(text, resolveEmbed) {
   if (!resolveEmbed) return text;
-  return text.replace(/(!?)\[\[([^\]|#]+)([|#][^\]]*)?\]\]/g, (match, bang, linkpath) => {
+  return mapMarkdownProse(text, prose => prose.replace(/(!?)\[\[([^\]|#]+)([|#][^\]]*)?\]\]/g, (match, bang, linkpath) => {
     if (bang) return match; // already an embed
     const extension = resolveEmbed(linkpath.trim());
     return extension && IMAGE_EXTENSIONS.has(String(extension).toLowerCase()) ? `!${match}` : match;
-  });
+  }));
 }
 
 function imageText(asset, unsupported, unavailable) {
@@ -68,20 +108,26 @@ function imageText(asset, unsupported, unavailable) {
 // moved: {from,to} when this task's attachment folder was renamed. Codex's own
 // replies can hard-code the old folder path; point those links at the new one.
 function renderTranscript(turns, entries, images = {},timeZone,resolveEmbed,moved) {
-  const relink=text=>moved?.from&&moved.to&&moved.from!==moved.to?text.split(`${moved.from}/`).join(`${moved.to}/`):text;
+  const relink=text=>moved?.from&&moved.to&&moved.from!==moved.to?mapMarkdownProse(text,prose=>prose.split(`${moved.from}/`).join(`${moved.to}/`)):text;
   const completed = new Map(turns.filter(t=>t.status === 'completed').map(t=>[t.id,t]));
   // Images Codex generates arrive as their own items, before the reply that
-  // presents them; show them under that turn's last final answer instead.
-  const generated = new Map(), lastAnswer = new Map(), seenImages = new Set();
+  // presents them; show them under the selected final/compatibility answer.
+  const generated = new Map(), finalAnswers = new Map(), unphasedAnswers = new Map(), seenImages = new Set();
   for (const {turnId,item} of entries) {
     if (!completed.has(turnId)) continue;
-    if (item.type === 'agentMessage' && item.phase === 'final_answer') lastAnswer.set(turnId,item.id);
+    if (item.type === 'agentMessage' && item.phase === 'final_answer') finalAnswers.set(turnId,item.id);
+    else if (item.type === 'agentMessage' && item.phase == null && item.text?.trim()) unphasedAnswers.set(turnId,item.id);
     if (item.type === 'imageGeneration' && item.status === 'completed' && !seenImages.has(`${turnId}/${item.id}`)) {
       seenImages.add(`${turnId}/${item.id}`);
       if (!generated.has(turnId)) generated.set(turnId,[]);
       generated.get(turnId).push(imageText(images[attachmentKey(turnId,item,0)],'（生成的图片格式不支持，未导入）','（生成的图片暂不可用，尚无库内副本）'));
     }
   }
+  // Some Codex providers omit `phase`. Only use the last unclassified message
+  // as a compatibility answer when the completed turn has no explicit final
+  // answer; never promote a message explicitly marked as commentary.
+  const selectedAnswers=new Map(finalAnswers);
+  for(const [turnId,itemId] of unphasedAnswers)if(!selectedAnswers.has(turnId))selectedAnswers.set(turnId,itemId);
   const seen = new Set();
   const blocks = [];
   for (const {turnId,item} of entries) {
@@ -103,10 +149,10 @@ function renderTranscript(turns, entries, images = {},timeZone,resolveEmbed,move
         if(c.type==='image')return '（远程图片未导入）';
         return `（附件未导入：${c.type||'未知类型'}）`;
       }).join('\n\n');
-    } else if (item.type === 'agentMessage' && item.phase === 'final_answer') {
+    } else if (item.type === 'agentMessage' && (item.phase === 'final_answer' || (item.phase == null && selectedAnswers.get(turnId) === item.id))) {
       role = 'Codex'; text = embedImageLinks(relink(item.text),resolveEmbed);
-      if (lastAnswer.get(turnId) === item.id && generated.has(turnId)) text = [text,...generated.get(turnId)].join('\n\n');
-    } else if (item.type === 'imageGeneration' && item.status === 'completed' && !lastAnswer.has(turnId) && generated.has(turnId)) {
+      if (selectedAnswers.get(turnId) === item.id && generated.has(turnId)) text = [text,...generated.get(turnId)].join('\n\n');
+    } else if (item.type === 'imageGeneration' && item.status === 'completed' && !selectedAnswers.has(turnId) && generated.has(turnId)) {
       // No written reply in this turn to attach to: show the images on their own, once.
       role = 'Codex'; text = generated.get(turnId).join('\n\n'); generated.delete(turnId);
     } else if (item.type === 'plan') {

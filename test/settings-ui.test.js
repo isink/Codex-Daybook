@@ -160,16 +160,20 @@ test('clicking the tab buttons switches the visible panel and marks the active t
   const {tab}=await buildTab();
   tab.display();
   const c=tab.containerEl;
-  const [basicButton,dailyButton]=tabButtons(c);
-  assert.equal(basicButton.text,'Basic settings');assert.equal(dailyButton.text,'Daily track');
-  assert.ok(basicButton.cls.includes('is-active'));assert.ok(!dailyButton.cls.includes('is-active'));
+  const [basicButton,dailyButton,workbuddyButton]=tabButtons(c);
+  assert.equal(basicButton.text,'Basic settings');assert.equal(dailyButton.text,'Daily track');assert.equal(workbuddyButton.text,'WorkBuddy');
+  assert.ok(basicButton.cls.includes('is-active'));assert.ok(!dailyButton.cls.includes('is-active'));assert.ok(!workbuddyButton.cls.includes('is-active'));
   const basicPanel=c.children.find(el=>el.cls==='codex-daybook-panel-basic');
   const dailyPanel=c.children.find(el=>el.cls==='codex-daybook-panel-daily');
+  const workbuddyPanel=c.children.find(el=>el.cls==='codex-daybook-panel-workbuddy');
   dailyButton.onclick();
-  assert.equal(basicPanel.hidden,true);assert.equal(dailyPanel.hidden,false);
+  assert.equal(basicPanel.hidden,true);assert.equal(dailyPanel.hidden,false);assert.equal(workbuddyPanel.hidden,true);
   assert.ok(!basicButton.cls.includes('is-active'));assert.ok(dailyButton.cls.includes('is-active'));
+  workbuddyButton.onclick();
+  assert.equal(basicPanel.hidden,true);assert.equal(dailyPanel.hidden,true);assert.equal(workbuddyPanel.hidden,false);
+  assert.ok(workbuddyButton.cls.includes('is-active'));
   basicButton.onclick();
-  assert.equal(basicPanel.hidden,false);assert.equal(dailyPanel.hidden,true);
+  assert.equal(basicPanel.hidden,false);assert.equal(dailyPanel.hidden,true);assert.equal(workbuddyPanel.hidden,true);
   assert.ok(basicButton.cls.includes('is-active'));assert.ok(!dailyButton.cls.includes('is-active'));
 });
 
@@ -202,8 +206,9 @@ test('text fields initialize from settings and flow into the draft; interval coe
   const {plugin,tab}=await buildTab();
   tab.display();
   const c=tab.containerEl;
-  const fields=textComponents(c); // noteFolder, attachmentFolder, executable, timeZone, intervalSeconds, dailyFolder, dailyTemplate
-  assert.equal(fields.length,7);
+  const fields=textComponents(c); // Seven Codex fields, plus WorkBuddy source, notes and images folders.
+  assert.equal(fields.length,10);
+  assert.equal(fields[9].value,'Attachments/WorkBuddy');
   assert.equal(fields[0].value,'Codex Conversations');
   assert.equal(fields[4].value,'10');
   await fields[0].type('New Folder');
@@ -214,14 +219,32 @@ test('text fields initialize from settings and flow into the draft; interval coe
   assert.equal(captured.intervalSeconds,30);assert.equal(typeof captured.intervalSeconds,'number');
 });
 
+test('checking WorkBuddy uses the unsaved draft without pausing an active sync',async()=>{
+  const {plugin,tab}=await buildTab();
+  tab.display();
+  const fields=textComponents(tab.containerEl);
+  await fields[7].type('/tmp/workbuddy-candidate');
+  const toggle=allSettings(tab.containerEl).find(s=>s.name==='Allow local WorkBuddy access').components.find(x=>x instanceof FakeToggleComponent);
+  await toggle.toggle(true);
+  let checked,paused=false;
+  plugin.checkWorkBuddy=async draft=>{checked={...draft};};
+  plugin.pauseWorkBuddy=async()=>{paused=true;};
+  await findButton(tab.containerEl,'Check local data').press();
+  assert.equal(checked.sourceFolder,'/tmp/workbuddy-candidate');
+  assert.equal(checked.consent,true);
+  assert.equal(paused,false);
+});
+
 test('folder fields suggest existing vault folders and still accept a new path',async()=>{
   const {tab}=await buildTab({}, {folders:[{path:'90_Templates'},{path:'00_Inbox'},{path:'90_Templates/Daily'},{path:''},{path:'00_Inbox'}]});
   tab.display();
   // A time-zone datalist is always present alongside these, so filter to the
   // folder-specific ones this test cares about.
   const lists=tab.containerEl.children.filter(el=>el.tag==='datalist'&&el.attrs.id?.startsWith('codex-daybook-folder-'));
-  assert.equal(lists.length,3);
+  assert.equal(lists.length,5);
   assert.deepEqual(lists.map(list=>list.children.map(option=>option.attrs.value)),[
+    ['00_Inbox','90_Templates','90_Templates/Daily'],
+    ['00_Inbox','90_Templates','90_Templates/Daily'],
     ['00_Inbox','90_Templates','90_Templates/Daily'],
     ['00_Inbox','90_Templates','90_Templates/Daily'],
     ['00_Inbox','90_Templates','90_Templates/Daily']
@@ -231,6 +254,7 @@ test('folder fields suggest existing vault folders and still accept a new path',
   assert.equal(fields[1].inputEl.attrs.list,'codex-daybook-folder-attachmentFolder');
   assert.equal(fields[5].inputEl.attrs.list,'codex-daybook-folder-dailyFolder');
   assert.equal(fields[6].inputEl.attrs.list,undefined);
+  assert.equal(fields[9].inputEl.attrs.list,'codex-daybook-folder-workbuddy-images');
   await fields[0].type('New Folder');
   assert.equal(fields[0].value,'New Folder');
 });

@@ -7,9 +7,10 @@ const {CompatibilityError}=require('./errors');
 class StateWriteError extends Error {}
 // Bumped whenever already-settled tasks need one more full pass: 2 added
 // images Codex generated, 3 moves attachment folders from the task ID to the
-// conversation title. A record below this version gets exactly one full
-// reconciliation, then settles again.
-const PUBLICATION_VERSION=3;
+// conversation title; 4 restores unphased answers and protects Markdown code
+// examples. A record below this version gets exactly one full reconciliation,
+// then settles again.
+const PUBLICATION_VERSION=4;
 function sourceMessage(vault,record) {
   return record?.notePath && vault.getAbstractFileByPath(record.notePath)
     ? '源对话暂不可用，本地副本已保留' : '源对话暂不可用，尚未生成本地副本';
