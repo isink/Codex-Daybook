@@ -29,8 +29,8 @@ Plans, debugging conclusions and drafts you work out with an AI get buried under
 **Requires** Obsidian 1.13.7+ (desktop only) and a local Codex Desktop installation. [Dataview](https://obsidian.md/plugins?id=dataview) is only needed for the optional daily track.
 
 1. In Obsidian, open **Settings → Community plugins → Browse**, search for **Codex Daybook**, then install and enable it.
-2. In the plugin settings, pick your notes and attachments folders under **Basic settings**. The Codex executable is detected automatically.
-3. Allow access outside the vault, click **Sign in to Codex** to finish the ChatGPT sign-in in your browser, then click **Check connection**.
+2. In the plugin settings, pick the **Notes folder** and **Attachments folder** under **Basic settings**. The Codex executable is detected automatically.
+3. Turn on **Allow access outside the vault**, click **Sign in to Codex** to finish the ChatGPT sign-in in your browser, then click **Check connection**.
 4. Once the check passes, click **Start sync**. Codex tasks created from now on become notes automatically.
 
 > **Only tasks created after you click Start sync are saved.** This is deliberate, so hundreds of old conversations don't flood your vault. The connection check needs at least one existing task; if you have none, finish a quick one in Codex first.
@@ -83,13 +83,20 @@ Anything below is your own; sync never touches it.
 
 ## WorkBuddy conversations (experimental)
 
-On the **WorkBuddy** tab, click **Scan WorkBuddy data** to fill the folder, then **Check local data** and **Start WorkBuddy sync**. These explicit local-read actions grant the corresponding read-only access, so there is no separate consent toggle. You can still enter an absolute path manually if scanning finds nothing.
+Save your local WorkBuddy conversations as notes too. It runs independently of Codex sync and is off by default.
 
-- Reads conversations under `~/.workbuddy/projects`, a WorkBuddy environment-configured location, or a common app-data location (or another absolute path you set). The bounded scan does not crawl the whole disk. Notes go to `WorkBuddy Conversations/` by default.
-- Images in your questions are copied to `Attachments/WorkBuddy/<note>/` (configurable) and shown inline.
-- No WorkBuddy token and no WorkBuddy cloud API.
-- Off by default and independent of Codex sync. The first run imports your existing local conversations.
-- Verified on WorkBuddy 5.6.2 and 5.7.7 for macOS. Cloud-only tasks are not supported. WorkBuddy's local format is not guaranteed to be stable; if a conversation can't be read, only that conversation stops importing and existing notes stay untouched.
+1. Open the **WorkBuddy** tab in the plugin settings and click **Scan WorkBuddy data**. The plugin finds the data folder and fills it in.
+2. Click **Check local data** to confirm completed conversations can be read.
+3. Click **Start WorkBuddy sync**. Existing local conversations are imported once, then new replies are picked up automatically.
+
+There is no separate permission toggle: clicking these three buttons is what allows the plugin to read your local WorkBuddy data, read-only. If the scan finds nothing, enter the absolute path of the data folder yourself.
+
+- **Where things go**: notes in `WorkBuddy Conversations/`, images from your questions in `Attachments/WorkBuddy/<note>/`. Both can be changed in settings.
+- **What it reads**: only `~/.workbuddy/projects` and a few common data locations. It never crawls the whole disk.
+- **Account and network**: no WorkBuddy token and no WorkBuddy cloud API.
+- **Verified on**: WorkBuddy 5.6.2 and 5.7.7 for macOS. Cloud-only tasks are not supported.
+
+> WorkBuddy's local file format has no official stability promise. If a conversation can't be read, only that conversation stops importing; existing notes stay as they are.
 
 ## Privacy
 
@@ -103,25 +110,33 @@ Full details: [PRIVACY.md](PRIVACY.md).
 ## FAQ
 
 **Can it import my ChatGPT web history?**
+
 No. It handles local Codex Desktop main tasks and, optionally, local WorkBuddy conversations.
 
 **Why weren't my older tasks synced?**
+
 Only Codex tasks created after you click Start sync are saved. WorkBuddy is different: its first run imports existing local conversations.
 
 **Will sync overwrite what I write in a note?**
+
 No. Only the managed region is updated. Your text and properties outside it are kept.
 
+**The WorkBuddy scan finds nothing. What now?**
+
+Finish one conversation in WorkBuddy and scan again. If it still finds nothing, enter the absolute path of the `projects` folder under **WorkBuddy data folder**.
+
 **Which languages does the interface support?**
+
 English and Simplified Chinese. Switch under Language in settings; it only affects the interface.
 
 ## Compatibility
 
-| | Status |
+| Item | Status |
 |---|---|
 | Obsidian | 1.13.7+, desktop only |
 | macOS | Verified |
 | Windows | Supported; hardware validation in progress |
-| WorkBuddy | macOS 5.6.2 and 5.7.7 verified |
+| WorkBuddy | macOS 5.6.2 and 5.7.7 verified; on Windows it already scans and starts sync, full validation in progress |
 
 ## Development
 
